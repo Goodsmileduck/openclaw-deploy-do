@@ -1,0 +1,41 @@
+---
+- name: Deploy OpenClaw to DigitalOcean Droplet
+  hosts: openclaw
+  become: true
+  gather_facts: true
+
+  roles:
+    - role: common
+
+    - role: docker
+
+    - role: openclaw
+
+    - role: nginx
+      when: access_method == "https"
+
+    - role: tailscale
+      when: access_method == "tailscale"
+
+  post_tasks:
+    - name: Post-deploy connection info
+      ansible.builtin.debug:
+        msg: |
+          ============================================
+          OpenClaw deployed successfully!
+
+          Access method: {{ access_method }}
+          {% if access_method == 'ssh_tunnel' %}
+          Connect via SSH tunnel:
+            ssh -L 18789:localhost:18789 openclaw@{{ ansible_host }}
+          Then open: http://localhost:18789
+          {% elif access_method == 'https' %}
+          Open: https://{{ domain_name }}
+          {% elif access_method == 'tailscale' %}
+          Available on your Tailscale network.
+          {% endif %}
+
+          To add channels:
+            ssh openclaw@{{ ansible_host }}
+            openclaw channels add
+          ============================================

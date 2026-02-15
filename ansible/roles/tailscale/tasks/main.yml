@@ -1,0 +1,35 @@
+---
+- name: Add Tailscale GPG key
+  ansible.builtin.get_url:
+    url: https://pkgs.tailscale.com/stable/ubuntu/{{ ansible_distribution_release }}.noarmor.gpg
+    dest: /etc/apt/keyrings/tailscale.gpg
+    mode: "0644"
+
+- name: Add Tailscale repository
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/etc/apt/keyrings/tailscale.gpg] https://pkgs.tailscale.com/stable/ubuntu {{ ansible_distribution_release }} main"
+    state: present
+
+- name: Install Tailscale
+  ansible.builtin.apt:
+    name: tailscale
+    state: present
+    update_cache: true
+
+- name: Enable and start Tailscale
+  ansible.builtin.service:
+    name: tailscaled
+    state: started
+    enabled: true
+
+- name: Authenticate Tailscale
+  ansible.builtin.command:
+    cmd: "tailscale up --authkey={{ tailscale_auth_key }}"
+  when: tailscale_auth_key != ""
+  changed_when: true
+
+- name: Configure Tailscale serve for OpenClaw gateway
+  ansible.builtin.command:
+    cmd: "tailscale serve --bg https+insecure://127.0.0.1:18789"
+  changed_when: true
+  when: tailscale_auth_key != ""

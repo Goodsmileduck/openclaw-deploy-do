@@ -1,0 +1,7 @@
+do_token             = "your-digitalocean-api-token"
+ssh_public_key_path  = "~/.ssh/id_rsa.pub"
+region               = "nyc3"
+droplet_size         = "s-2vcpu-4gb"
+droplet_name         = "openclaw-server"
+access_method        = "ssh_tunnel"  # ssh_tunnel | tailscale | https
+# domain_name        = "openclaw.example.com"  # Required for https access_method

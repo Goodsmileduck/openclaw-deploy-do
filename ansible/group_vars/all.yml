@@ -1,0 +1,24 @@
+---
+# SSH
+ssh_public_key_path: "~/.ssh/id_do_ssh.pub"
+
+# Access method: ssh_tunnel | tailscale | https
+access_method: "ssh_tunnel"
+
+# LLM Provider: anthropic | openai | gradient | custom
+llm_provider: "anthropic"
+llm_api_key: ""  # Pass via --extra-vars or ansible-vault
+llm_model: ""    # Leave empty for provider default
+
+# OpenClaw
+openclaw_gateway_token: ""  # Leave empty to auto-generate
+
+# Nginx / HTTPS (only when access_method == "https")
+domain_name: ""
+certbot_email: ""
+
+# Tailscale (only when access_method == "tailscale")
+tailscale_auth_key: ""  # Pre-auth key from Tailscale admin console
+
+# Custom provider env var name (only when llm_provider == "custom")
+llm_env_var: "LLM_API_KEY"

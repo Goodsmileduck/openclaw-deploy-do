@@ -1,0 +1,78 @@
+---
+- name: Install NodeSource GPG key
+  ansible.builtin.get_url:
+    url: https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key
+    dest: /etc/apt/keyrings/nodesource.asc
+    mode: "0644"
+
+- name: Add NodeSource repository for Node.js 22
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/etc/apt/keyrings/nodesource.asc] https://deb.nodesource.com/node_22.x nodistro main"
+    state: present
+
+- name: Install Node.js
+  ansible.builtin.apt:
+    name: nodejs
+    state: present
+    update_cache: true
+
+- name: Install OpenClaw globally
+  community.general.npm:
+    name: openclaw
+    global: true
+    state: present
+  become: true
+
+- name: Create OpenClaw config directory
+  ansible.builtin.file:
+    path: /home/openclaw/.openclaw
+    state: directory
+    owner: openclaw
+    group: openclaw
+    mode: "0700"
+
+- name: Generate gateway token
+  ansible.builtin.command:
+    cmd: openssl rand -hex 32
+  register: gateway_token_result
+  changed_when: false
+  when: openclaw_gateway_token == ""
+
+- name: Set gateway token fact
+  ansible.builtin.set_fact:
+    _gateway_token: "{{ openclaw_gateway_token if openclaw_gateway_token != '' else gateway_token_result.stdout }}"
+
+- name: Template OpenClaw configuration
+  ansible.builtin.template:
+    src: openclaw.json.j2
+    dest: /home/openclaw/.openclaw/openclaw.json
+    owner: openclaw
+    group: openclaw
+    mode: "0600"
+  notify: Restart openclaw-gateway
+
+- name: Template systemd service
+  ansible.builtin.template:
+    src: openclaw-gateway.service.j2
+    dest: /etc/systemd/system/openclaw-gateway.service
+    mode: "0644"
+  notify:
+    - Reload systemd
+    - Restart openclaw-gateway
+
+- name: Enable and start OpenClaw gateway
+  ansible.builtin.service:
+    name: openclaw-gateway
+    state: started
+    enabled: true
+
+- name: Allow OpenClaw gateway port in UFW (loopback only for non-https)
+  community.general.ufw:
+    rule: allow
+    port: "18789"
+    proto: tcp
+  when: access_method == "https"
+
+- name: Display gateway token
+  ansible.builtin.debug:
+    msg: "OpenClaw Gateway Token: {{ _gateway_token }}"

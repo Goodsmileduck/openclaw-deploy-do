@@ -1,0 +1,24 @@
+{
+  "agent": {
+{% if llm_provider == "anthropic" %}
+    "model": "{{ llm_model | default('anthropic/claude-opus-4-6') }}"
+{% elif llm_provider == "openai" %}
+    "model": "{{ llm_model | default('openai/gpt-4o') }}"
+{% elif llm_provider == "gradient" %}
+    "model": "{{ llm_model | default('gradient/llama-3.1-8b') }}"
+{% else %}
+    "model": "{{ llm_model }}"
+{% endif %}
+  },
+  "gateway": {
+    "port": 18789,
+    "token": "{{ _gateway_token }}"
+  },
+  "sandbox": {
+    "mode": "non-main",
+    "docker": true
+  },
+  "dm": {
+    "pairing": true
+  }
+}
