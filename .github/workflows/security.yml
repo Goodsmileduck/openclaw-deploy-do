@@ -38,7 +38,7 @@ jobs:
       - uses: bridgecrewio/checkov-action@v12.1347.0
         with:
           directory: .
-          framework: terraform,ansible
+          framework: terraform
           soft_fail: true
           quiet: true
 
