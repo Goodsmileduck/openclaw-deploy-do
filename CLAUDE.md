@@ -50,10 +50,10 @@ ansible/            # Ansible with roles-based structure
   roles/
     common/         # User, SSH hardening, UFW, fail2ban
     docker/         # Docker CE installation
-    openclaw/       # Node.js, OpenClaw, systemd service, Control UI
-    traefik/        # Traefik v3 reverse proxy + ACME TLS (https only)
+    openclaw/       # Docker compose stack (OpenClaw + conditional Traefik/Restic)
+    traefik/        # Traefik dynamic config + UFW rules (https only)
     tailscale/      # Mesh VPN (enable_tailscale boolean)
-    backup/         # Restic backup to DO Spaces (enable_backup boolean)
+    backup/         # Restic backup scheduling via systemd timer (enable_backup boolean)
 
 scripts/
   deploy.sh         # Orchestrates terraform apply → ansible-playbook
@@ -65,6 +65,7 @@ scripts/
 - **Terraform:** Flat root module, no nested modules. All resources in `main.tf`.
 - **Ansible:** Roles-based. Each role has `tasks/main.yml`, optional `handlers/main.yml` and `templates/`.
 - **Templates:** Jinja2 (`.j2` extension) for Ansible templates.
+- **Docker deployment:** OpenClaw runs via `ghcr.io/openclaw/openclaw:latest` in a single `docker-compose.yml` at `/opt/openclaw/`. Traefik and Restic are conditional services in the same compose stack.
 - **Conditional roles:** traefik applied when `access_method == "https"`, tailscale when `enable_tailscale`, backup when `enable_backup`.
 - **Ubuntu 24.04:** SSH service is `ssh`, not `sshd`.
 - **AI-ASSISTED-SETUP.md:** After any change to variables, scripts, roles, access methods, or deployment flow, update `AI-ASSISTED-SETUP.md` to keep the AI-assisted prompts and reference tables accurate.
@@ -129,7 +130,7 @@ Critical schema rules discovered through deployment:
   ```
 - Setup tokens (`sk-ant-oat01-*`) are OAuth Access Tokens with limited lifetime — they expire and need regeneration via `claude setup-token`.
 - The `openclaw models auth setup-token` and `paste-token` commands both require an interactive TTY — they cannot accept piped input. Direct file write is the only automation path.
-- To update a token on a running server: write the file, then `sudo systemctl restart openclaw-gateway`.
+- To update a token on a running server: write the file, then `sudo docker compose -f /opt/openclaw/docker-compose.yml restart openclaw`.
 
 ## Jinja2 Template Gotchas
 
@@ -140,7 +141,8 @@ Critical schema rules discovered through deployment:
 - **Ansible venv**: `ansible-playbook` lives in `~/.ansible-venv/bin/`. The `deploy.sh` script auto-activates the venv if not in PATH.
 - **SSH key**: Derived from Terraform's `ssh_public_key_path` output (strips `.pub` suffix for private key).
 - **First deploy** uses `ansible_user=root`. After the common role runs, root SSH is disabled — re-runs need `ansible_user=openclaw` with `ansible_become=true`.
-- **Current server**: `167.71.222.183` (sgp1 region).
+- **Current server**: `146.190.86.54` (sgp1 region).
+- **Container management**: `sudo docker compose -f /opt/openclaw/docker-compose.yml ps|logs|restart`.
 
 ## Telegram Bot
 

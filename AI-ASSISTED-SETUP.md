@@ -76,7 +76,7 @@ I'll provide my DigitalOcean API token when prompted.
 ssh openclaw@<droplet-ip>
 
 # Check gateway status
-sudo systemctl status openclaw-gateway
+sudo docker compose -f /opt/openclaw/docker-compose.yml ps
 
 # Set up SSH tunnel (from local machine)
 ssh -L 18789:localhost:18789 openclaw@<droplet-ip>
@@ -257,9 +257,7 @@ Deploy OpenClaw with Claude setup-token authentication.
 
 3. After deployment, SSH into the server and complete auth setup:
    ssh openclaw@<droplet-ip>
-   claude setup-token
-   openclaw models auth setup-token --provider anthropic
-   sudo systemctl restart openclaw-gateway
+   ./setup-claude-token.sh
 
 4. Verify the connection is working.
 
@@ -281,8 +279,8 @@ Deploy OpenClaw without an LLM key — I'll configure it later.
 
 2. After deployment, show me how to:
    - SSH into the server
-   - Add an API key to the systemd service environment
-   - Restart the gateway
+   - Add an API key to /etc/openclaw/gateway.env
+   - Restart the gateway container
    - Verify the LLM connection
 
 The gateway will start but won't be able to process LLM requests until a key is added.
@@ -358,7 +356,7 @@ Help me connect WhatsApp to my OpenClaw deployment.
    - How to verify the connection
 
 4. After linking:
-   - Restart the gateway: sudo systemctl restart openclaw-gateway
+   - Restart the gateway: sudo docker compose -f /opt/openclaw/docker-compose.yml restart openclaw
    - Verify: openclaw channels status --probe
    - Send a test message
 
@@ -510,17 +508,13 @@ cd ansible && ansible-playbook -i inventory.ini playbook.yml
 ./scripts/destroy.sh                                   # Tear down everything
 
 # Server management (after SSH)
-sudo systemctl status openclaw-gateway    # Check gateway status
-sudo systemctl restart openclaw-gateway   # Restart gateway
-sudo journalctl -u openclaw-gateway -f    # Follow gateway logs
-
-# Traefik (HTTPS mode)
-docker ps | grep traefik                  # Check Traefik container
-docker logs traefik                       # Traefik logs
+sudo docker compose -f /opt/openclaw/docker-compose.yml ps       # Check container status
+sudo docker compose -f /opt/openclaw/docker-compose.yml restart  # Restart all services
+sudo docker compose -f /opt/openclaw/docker-compose.yml logs -f  # Follow logs
 
 # Backup
 sudo systemctl status openclaw-backup.timer   # Check backup timer
-source ~/.restic-env && restic snapshots      # List snapshots
+sudo docker compose -f /opt/openclaw/docker-compose.yml run --rm restic restic snapshots  # List snapshots
 
 # OpenClaw commands (on server)
 openclaw gateway health --url ws://127.0.0.1:18789
@@ -537,13 +531,13 @@ ssh -L 18789:localhost:18789 openclaw@<droplet-ip>
 | --- | --- |
 | Terraform fails with auth error | Verify `do_token` in `terraform.tfvars` |
 | Ansible can't connect | Wait for droplet boot; check SSH key path |
-| Gateway not starting | Check logs: `sudo journalctl -u openclaw-gateway -e` |
-| LLM requests failing | Verify API key: check systemd env vars |
-| Traefik not starting | Check `docker logs traefik`; verify ports 80/443 not in use |
+| Gateway not starting | Check logs: `sudo docker compose -f /opt/openclaw/docker-compose.yml logs openclaw` |
+| LLM requests failing | Verify API key in `/etc/openclaw/gateway.env` |
+| Traefik not starting | Check `sudo docker compose -f /opt/openclaw/docker-compose.yml logs traefik`; verify ports 80/443 not in use |
 | TLS certificate fails (DNS) | Verify `acme_dns_token` has DNS write access |
 | TLS certificate fails (HTTP) | Ensure DNS points to droplet IP, port 80 open |
 | Tailscale not connecting | Check auth key validity and `tailscale status` |
-| Backup failing | Check `source ~/.restic-env && restic check`; verify Spaces credentials |
+| Backup failing | Check `sudo docker compose -f /opt/openclaw/docker-compose.yml run --rm restic restic check`; verify Spaces credentials |
 | WhatsApp disconnected | Re-run `openclaw channels login --channel whatsapp` |
 | Control UI not loading | Verify `enable_control_ui: true` in config |
 
@@ -566,26 +560,32 @@ ssh -L 18789:localhost:18789 openclaw@<droplet-ip>
 ┌─────────────────────────────────────────────────┐
 │            DigitalOcean Droplet                  │
 │                                                  │
-│  ┌──────────┐  ┌─────────┐  ┌────────────────┐  │
-│  │   UFW    │  │ fail2ban│  │   Docker       │  │
-│  │ Firewall │  │         │  │  (sandbox +    │  │
-│  └──────────┘  └─────────┘  │   Traefik)     │  │
-│                              └────────────────┘  │
+│  ┌──────────┐  ┌─────────┐                       │
+│  │   UFW    │  │ fail2ban│                       │
+│  │ Firewall │  │         │                       │
+│  └──────────┘  └─────────┘                       │
 │                                                  │
-│  ┌────────────────────────────────────────────┐  │
-│  │      OpenClaw Gateway (:18789)             │  │
-│  │  ┌─────────┐  ┌──────────┐  ┌──────────┐  │  │
-│  │  │Anthropic│  │ Channels │  │ Control  │  │  │
-│  │  │ OpenAI  │  │ Telegram │  │   UI     │  │  │
-│  │  │ DO AI   │  │ WhatsApp │  │ /openclaw│  │  │
-│  │  │ etc.    │  │ Discord  │  │          │  │  │
-│  │  └─────────┘  └──────────┘  └──────────┘  │  │
-│  └────────────────────────────────────────────┘  │
+│  ┌─── Docker Compose (/opt/openclaw/) ────────┐  │
+│  │                                             │  │
+│  │  ┌──────────────────────────────────────┐   │  │
+│  │  │   OpenClaw Gateway (:18789)          │   │  │
+│  │  │   ghcr.io/openclaw/openclaw:latest   │   │  │
+│  │  │  ┌─────────┐ ┌──────────┐ ┌──────┐  │   │  │
+│  │  │  │Anthropic│ │ Channels │ │CtrlUI│  │   │  │
+│  │  │  │ OpenAI  │ │ Telegram │ │/open │  │   │  │
+│  │  │  │ DO AI   │ │ WhatsApp │ │ claw │  │   │  │
+│  │  │  └─────────┘ └──────────┘ └──────┘  │   │  │
+│  │  └──────────────────────────────────────┘   │  │
+│  │                                             │  │
+│  │  ┌──────────┐  ┌──────────┐                 │  │
+│  │  │ Traefik  │  │  Restic  │                 │  │
+│  │  │ (https)  │  │ (backup) │                 │  │
+│  │  └──────────┘  └──────────┘                 │  │
+│  └─────────────────────────────────────────────┘  │
 │                                                  │
-│  ┌──────────┐  ┌──────────┐  ┌───────────────┐  │
-│  │ Traefik  │  │  Restic  │  │  Tailscale    │  │
-│  │ (https)  │  │ (backup) │  │  (optional)   │  │
-│  └──────────┘  └──────────┘  └───────────────┘  │
+│  ┌───────────────┐                               │
+│  │  Tailscale    │  (native, optional)           │
+│  └───────────────┘                               │
 └─────────────────────────────────────────────────┘
 ```
 
