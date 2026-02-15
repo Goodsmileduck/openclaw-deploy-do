@@ -55,6 +55,7 @@
     group: openclaw
     mode: "0600"
   when: claude_setup_token != ""
+  no_log: true
   notify: Restart openclaw-gateway
 
 - name: Generate gateway token
@@ -62,11 +63,13 @@
     cmd: openssl rand -hex 32
   register: gateway_token_result
   changed_when: false
+  no_log: true
   when: openclaw_gateway_token == ""
 
 - name: Set gateway token fact
   ansible.builtin.set_fact:
     _gateway_token: "{{ openclaw_gateway_token if openclaw_gateway_token != '' else gateway_token_result.stdout }}"
+  no_log: true
 
 - name: Template OpenClaw configuration
   ansible.builtin.template:
@@ -75,6 +78,24 @@
     owner: openclaw
     group: openclaw
     mode: "0600"
+  notify: Restart openclaw-gateway
+
+- name: Create OpenClaw system config directory
+  ansible.builtin.file:
+    path: /etc/openclaw
+    state: directory
+    owner: openclaw
+    group: openclaw
+    mode: "0700"
+
+- name: Template gateway environment file
+  ansible.builtin.template:
+    src: openclaw-gateway.env.j2
+    dest: /etc/openclaw/gateway.env
+    owner: openclaw
+    group: openclaw
+    mode: "0600"
+  no_log: true
   notify: Restart openclaw-gateway
 
 - name: Template systemd service
@@ -107,6 +128,15 @@
     group: openclaw
     mode: "0755"
 
-- name: Display gateway token
+- name: Save gateway token to local file
+  ansible.builtin.copy:
+    content: "{{ _gateway_token }}"
+    dest: "{{ playbook_dir }}/.gateway-token"
+    mode: "0600"
+  delegate_to: localhost
+  become: false
+  no_log: true
+
+- name: Notify about gateway token
   ansible.builtin.debug:
-    msg: "OpenClaw Gateway Token: {{ _gateway_token }}"
+    msg: "Gateway token saved to {{ playbook_dir }}/.gateway-token"

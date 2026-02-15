@@ -16,6 +16,8 @@ ansible/*.retry
 *.key
 .env
 .env.*
+ansible/.gateway-token
+ansible/.restic-password
 
 # Logs
 *.log
