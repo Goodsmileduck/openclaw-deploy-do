@@ -1,4 +1,22 @@
 services:
+  openclaw:
+    image: ghcr.io/openclaw/openclaw:latest
+    container_name: openclaw-gateway
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 1g
+    ports:
+      - "127.0.0.1:18789:18789"
+    volumes:
+      - /home/openclaw/.openclaw:/home/node/.openclaw
+    env_file:
+      - /etc/openclaw/gateway.env
+    command: ["gateway", "--port", "18789", "--verbose"]
+{% if access_method == "https" %}
+
   traefik:
     image: traefik:v3.3
     container_name: traefik
@@ -17,11 +35,9 @@ services:
     ports:
       - "80:80"
       - "443:443"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     volumes:
-      - /opt/traefik/acme:/acme
-      - /opt/traefik/config:/config:ro
+      - /opt/openclaw/acme:/acme
+      - /opt/openclaw/traefik:/config:ro
 {% if acme_challenge == "dns" %}
     environment:
       - DO_AUTH_TOKEN={{ acme_dns_token }}
@@ -40,4 +56,17 @@ services:
 {% else %}
       - "--certificatesresolvers.letsencrypt.acme.httpchallenge=true"
       - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
+{% endif %}
+{% endif %}
+{% if enable_backup | bool %}
+
+  restic:
+    image: restic/restic:latest
+    container_name: openclaw-backup
+    profiles:
+      - backup
+    volumes:
+      - /home/openclaw/.openclaw:/data:ro
+    env_file:
+      - /home/openclaw/.restic-env
 {% endif %}

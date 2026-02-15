@@ -7,9 +7,8 @@
     group: root
     mode: "0755"
   loop:
-    - /opt/traefik
-    - /opt/traefik/acme
-    - /opt/traefik/config
+    - /opt/openclaw/acme
+    - /opt/openclaw/traefik
 
 - name: Allow HTTP through UFW
   community.general.ufw:
@@ -23,26 +22,11 @@
     port: "443"
     proto: tcp
 
-- name: Template Traefik docker-compose
-  ansible.builtin.template:
-    src: docker-compose.yml.j2
-    dest: /opt/traefik/docker-compose.yml
-    owner: root
-    group: root
-    mode: "0600"
-  no_log: true
-  notify: Restart traefik
-
 - name: Template Traefik dynamic config
   ansible.builtin.template:
     src: traefik-dynamic.yml.j2
-    dest: /opt/traefik/config/dynamic.yml
+    dest: /opt/openclaw/traefik/dynamic.yml
     owner: root
     group: root
     mode: "0644"
-  notify: Restart traefik
-
-- name: Start Traefik with docker compose
-  community.docker.docker_compose_v2:
-    project_src: /opt/traefik
-    state: present
+  notify: Restart openclaw stack

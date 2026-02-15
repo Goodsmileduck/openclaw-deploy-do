@@ -8,6 +8,10 @@
         "primary": "{{ llm_model or 'openai/gpt-4o' }}"
 {% elif llm_provider == "do_ai" %}
         "primary": "{{ llm_model or 'do-ai/llama-3.3-70b-instruct' }}"
+{% elif llm_provider == "gemini" %}
+        "primary": "{{ llm_model or 'google/gemini-2.0-flash' }}"
+{% elif llm_provider == "openrouter" %}
+        "primary": "{{ llm_model or 'anthropic/claude-sonnet-4-5' }}"
 {% elif llm_provider == "gradient" %}
         "primary": "{{ llm_model or 'gradient/llama-3.1-8b' }}"
 {% else %}
@@ -36,7 +40,7 @@
     "port": 18789,
     "mode": "local",
 {% if access_method == "https" %}
-    "trustedProxies": ["172.17.0.0/16"],
+    "trustedProxies": ["172.16.0.0/12"],
 {% endif %}
     "auth": {
       "mode": "token",

@@ -1,35 +1,4 @@
 ---
-- name: Install NodeSource GPG key
-  ansible.builtin.get_url:
-    url: https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key
-    dest: /etc/apt/keyrings/nodesource.asc
-    mode: "0644"
-
-- name: Add NodeSource repository for Node.js 22
-  ansible.builtin.apt_repository:
-    repo: "deb [signed-by=/etc/apt/keyrings/nodesource.asc] https://deb.nodesource.com/node_22.x nodistro main"
-    state: present
-
-- name: Install Node.js
-  ansible.builtin.apt:
-    name: nodejs
-    state: present
-    update_cache: true
-
-- name: Install OpenClaw globally
-  community.general.npm:
-    name: openclaw
-    global: true
-    state: present
-  become: true
-
-- name: Install Claude Code CLI globally
-  community.general.npm:
-    name: "@anthropic-ai/claude-code"
-    global: true
-    state: present
-  become: true
-
 - name: Create OpenClaw config directory
   ansible.builtin.file:
     path: /home/openclaw/.openclaw
@@ -56,7 +25,7 @@
     mode: "0600"
   when: claude_setup_token != ""
   no_log: true
-  notify: Restart openclaw-gateway
+  notify: Restart openclaw stack
 
 - name: Generate gateway token
   ansible.builtin.command:
@@ -78,7 +47,7 @@
     owner: openclaw
     group: openclaw
     mode: "0600"
-  notify: Restart openclaw-gateway
+  notify: Restart openclaw stack
 
 - name: Create OpenClaw system config directory
   ansible.builtin.file:
@@ -96,29 +65,31 @@
     group: openclaw
     mode: "0600"
   no_log: true
-  notify: Restart openclaw-gateway
+  notify: Restart openclaw stack
 
-- name: Template systemd service
+- name: Create compose directory
+  ansible.builtin.file:
+    path: /opt/openclaw
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Template docker-compose.yml
   ansible.builtin.template:
-    src: openclaw-gateway.service.j2
-    dest: /etc/systemd/system/openclaw-gateway.service
-    mode: "0644"
-  notify:
-    - Reload systemd
-    - Restart openclaw-gateway
+    src: docker-compose.yml.j2
+    dest: /opt/openclaw/docker-compose.yml
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+  notify: Restart openclaw stack
 
-- name: Enable and start OpenClaw gateway
-  ansible.builtin.service:
-    name: openclaw-gateway
-    state: started
-    enabled: true
-
-- name: Allow OpenClaw gateway port in UFW (for Traefik proxy)
-  community.general.ufw:
-    rule: allow
-    port: "18789"
-    proto: tcp
-  when: access_method == "https"
+- name: Start OpenClaw stack
+  community.docker.docker_compose_v2:
+    project_src: /opt/openclaw
+    state: present
+    pull: always
 
 - name: Deploy Claude setup-token helper script
   ansible.builtin.template:

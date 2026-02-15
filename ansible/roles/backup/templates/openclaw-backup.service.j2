@@ -1,11 +1,10 @@
 [Unit]
 Description=OpenClaw Restic Backup
-After=network-online.target
+After=network-online.target docker.service
 Wants=network-online.target
+Requires=docker.service
 
 [Service]
 Type=oneshot
-User=openclaw
-EnvironmentFile=/home/openclaw/.restic-env
-ExecStart=/usr/bin/restic backup /home/openclaw/.openclaw --exclude='*.log' --exclude='sandboxes/*'
-ExecStartPost=/usr/bin/restic forget --keep-hourly 24 --keep-daily 7 --keep-weekly 4 --prune
+ExecStart=/usr/bin/docker compose -f /opt/openclaw/docker-compose.yml run --rm restic restic backup /data --exclude='*.log' --exclude='sandboxes/*'
+ExecStartPost=/usr/bin/docker compose -f /opt/openclaw/docker-compose.yml run --rm restic restic forget --keep-hourly 24 --keep-daily 7 --keep-weekly 4 --prune
