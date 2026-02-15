@@ -1,0 +1,68 @@
+---
+- name: Install restic
+  ansible.builtin.apt:
+    name: restic
+    state: present
+
+- name: Generate restic password
+  ansible.builtin.command:
+    cmd: openssl rand -hex 32
+  register: restic_password_result
+  changed_when: false
+  when: restic_password == ""
+
+- name: Set restic password fact
+  ansible.builtin.set_fact:
+    _restic_password: "{{ restic_password if restic_password != '' else restic_password_result.stdout }}"
+
+- name: Set spaces region fact
+  ansible.builtin.set_fact:
+    _spaces_region: "{{ spaces_region if spaces_region != '' else region | default('nyc3') }}"
+
+- name: Template restic environment file
+  ansible.builtin.template:
+    src: restic-env.j2
+    dest: /home/openclaw/.restic-env
+    owner: openclaw
+    group: openclaw
+    mode: "0600"
+
+- name: Initialize restic repository
+  ansible.builtin.command:
+    cmd: restic init
+  environment:
+    AWS_ACCESS_KEY_ID: "{{ spaces_access_key_id }}"
+    AWS_SECRET_ACCESS_KEY: "{{ spaces_secret_access_key }}"
+    RESTIC_REPOSITORY: "s3:https://{{ _spaces_region }}.digitaloceanspaces.com/{{ spaces_bucket }}/openclaw"
+    RESTIC_PASSWORD: "{{ _restic_password }}"
+  become: true
+  become_user: openclaw
+  register: restic_init
+  changed_when: "'created restic repository' in restic_init.stdout"
+  failed_when: "restic_init.rc != 0 and 'already initialized' not in restic_init.stderr"
+
+- name: Template backup systemd service
+  ansible.builtin.template:
+    src: openclaw-backup.service.j2
+    dest: /etc/systemd/system/openclaw-backup.service
+    mode: "0644"
+  notify: Reload systemd for backup
+
+- name: Template backup systemd timer
+  ansible.builtin.template:
+    src: openclaw-backup.timer.j2
+    dest: /etc/systemd/system/openclaw-backup.timer
+    mode: "0644"
+  notify:
+    - Reload systemd for backup
+    - Enable backup timer
+
+- name: Enable and start backup timer
+  ansible.builtin.service:
+    name: openclaw-backup.timer
+    state: started
+    enabled: true
+
+- name: Display restic password
+  ansible.builtin.debug:
+    msg: "Restic backup password (SAVE THIS): {{ _restic_password }}"

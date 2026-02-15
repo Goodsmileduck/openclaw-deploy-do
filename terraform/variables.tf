@@ -7,7 +7,7 @@ variable "do_token" {
 variable "ssh_public_key_path" {
   description = "Path to SSH public key file"
   type        = string
-  default     = "~/.ssh/id_rsa.pub"
+  default     = "~/.ssh/id_do_ssh.pub"
 }
 
 variable "region" {
@@ -29,14 +29,20 @@ variable "droplet_name" {
 }
 
 variable "access_method" {
-  description = "Remote access method: ssh_tunnel, tailscale, or https"
+  description = "Remote access method: ssh_tunnel or https"
   type        = string
   default     = "ssh_tunnel"
 
   validation {
-    condition     = contains(["ssh_tunnel", "tailscale", "https"], var.access_method)
-    error_message = "access_method must be one of: ssh_tunnel, tailscale, https"
+    condition     = contains(["ssh_tunnel", "https"], var.access_method)
+    error_message = "access_method must be one of: ssh_tunnel, https"
   }
+}
+
+variable "enable_tailscale" {
+  description = "Enable Tailscale mesh VPN (works alongside any access_method)"
+  type        = bool
+  default     = false
 }
 
 variable "domain_name" {
@@ -49,4 +55,18 @@ variable "project_name" {
   description = "DigitalOcean project name"
   type        = string
   default     = "OpenClaw"
+}
+
+variable "claude_setup_token" {
+  description = "Claude setup token (from: claude setup-token)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "telegram_bot_token" {
+  description = "Telegram bot token from @BotFather"
+  type        = string
+  default     = ""
+  sensitive   = true
 }

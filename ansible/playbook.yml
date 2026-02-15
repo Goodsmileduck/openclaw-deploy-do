@@ -11,11 +11,14 @@
 
     - role: openclaw
 
-    - role: nginx
+    - role: traefik
       when: access_method == "https"
 
     - role: tailscale
-      when: access_method == "tailscale"
+      when: enable_tailscale | bool
+
+    - role: backup
+      when: enable_backup | bool
 
   post_tasks:
     - name: Post-deploy connection info
@@ -31,11 +34,33 @@
           Then open: http://localhost:18789
           {% elif access_method == 'https' %}
           Open: https://{{ domain_name }}
-          {% elif access_method == 'tailscale' %}
-          Available on your Tailscale network.
+          {% endif %}
+          {% if enable_tailscale | bool %}
+          Tailscale: Enabled -- also available on your Tailscale network.
           {% endif %}
 
+          {% if claude_setup_token != "" %}
+          Claude auth: Configured via setup-token
+          {% else %}
+          To configure Claude subscription auth:
+            ssh openclaw@{{ ansible_host }}
+            ./setup-claude-token.sh
+          {% endif %}
+
+          {% if enable_control_ui | default(true) | bool %}
+          Control UI: {{ 'https://' ~ domain_name ~ '/openclaw' if access_method == 'https' else 'http://localhost:18789/openclaw (via SSH tunnel)' }}
+          {% endif %}
+
+          {% if telegram_bot_token != "" %}
+          Telegram bot: Enabled (DM policy: {{ telegram_dm_policy }})
+          {% endif %}
+          {% if openclaw_channels | default([]) | length > 0 %}
+          Channels enabled: {{ openclaw_channels | join(', ') }}
+          Configure channel credentials via Control UI or SSH.
+          {% endif %}
+          {% if telegram_bot_token == "" and openclaw_channels | default([]) | length == 0 %}
           To add channels:
             ssh openclaw@{{ ansible_host }}
             openclaw channels add
+          {% endif %}
           ============================================

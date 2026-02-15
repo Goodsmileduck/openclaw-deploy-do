@@ -1,0 +1,47 @@
+---
+- name: Create Traefik directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - /opt/traefik
+    - /opt/traefik/acme
+    - /opt/traefik/config
+
+- name: Allow HTTP through UFW
+  community.general.ufw:
+    rule: allow
+    port: "80"
+    proto: tcp
+
+- name: Allow HTTPS through UFW
+  community.general.ufw:
+    rule: allow
+    port: "443"
+    proto: tcp
+
+- name: Template Traefik docker-compose
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: /opt/traefik/docker-compose.yml
+    owner: root
+    group: root
+    mode: "0600"
+  notify: Restart traefik
+
+- name: Template Traefik dynamic config
+  ansible.builtin.template:
+    src: traefik-dynamic.yml.j2
+    dest: /opt/traefik/config/dynamic.yml
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart traefik
+
+- name: Start Traefik with docker compose
+  community.docker.docker_compose_v2:
+    project_src: /opt/traefik
+    state: present

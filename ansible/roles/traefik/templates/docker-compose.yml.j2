@@ -1,0 +1,32 @@
+services:
+  traefik:
+    image: traefik:v3.3
+    container_name: traefik
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - /opt/traefik/acme:/acme
+      - /opt/traefik/config:/config:ro
+{% if acme_challenge == "dns" %}
+    environment:
+      - DO_AUTH_TOKEN={{ acme_dns_token }}
+{% endif %}
+    command:
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--providers.file.directory=/config"
+      - "--providers.file.watch=true"
+      - "--certificatesresolvers.letsencrypt.acme.email={{ acme_email }}"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/acme/acme.json"
+{% if acme_challenge == "dns" %}
+      - "--certificatesresolvers.letsencrypt.acme.dnschallenge=true"
+      - "--certificatesresolvers.letsencrypt.acme.dnschallenge.provider=digitalocean"
+{% else %}
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge=true"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
+{% endif %}

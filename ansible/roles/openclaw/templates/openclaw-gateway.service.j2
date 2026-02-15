@@ -17,6 +17,8 @@ Environment="OPENAI_API_KEY={{ llm_api_key }}"
 Environment="OPENROUTER_API_KEY={{ llm_api_key }}"
 {% elif llm_provider == "gemini" %}
 Environment="GEMINI_API_KEY={{ llm_api_key }}"
+{% elif llm_provider == "do_ai" %}
+Environment="DO_AI_API_KEY={{ llm_api_key }}"
 {% elif llm_provider == "gradient" %}
 Environment="GRADIENT_API_KEY={{ llm_api_key }}"
 {% else %}

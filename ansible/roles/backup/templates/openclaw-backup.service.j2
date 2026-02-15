@@ -1,0 +1,11 @@
+[Unit]
+Description=OpenClaw Restic Backup
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=openclaw
+EnvironmentFile=/home/openclaw/.restic-env
+ExecStart=/usr/bin/restic backup /home/openclaw/.openclaw --exclude='*.log' --exclude='sandboxes/*'
+ExecStartPost=/usr/bin/restic forget --keep-hourly 24 --keep-daily 7 --keep-weekly 4 --prune

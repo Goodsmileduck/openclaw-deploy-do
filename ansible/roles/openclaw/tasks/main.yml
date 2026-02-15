@@ -23,6 +23,13 @@
     state: present
   become: true
 
+- name: Install Claude Code CLI globally
+  community.general.npm:
+    name: "@anthropic-ai/claude-code"
+    global: true
+    state: present
+  become: true
+
 - name: Create OpenClaw config directory
   ansible.builtin.file:
     path: /home/openclaw/.openclaw
@@ -30,6 +37,25 @@
     owner: openclaw
     group: openclaw
     mode: "0700"
+
+- name: Create auth-profiles directory
+  ansible.builtin.file:
+    path: /home/openclaw/.openclaw/agents/main/agent
+    state: directory
+    owner: openclaw
+    group: openclaw
+    mode: "0700"
+  when: claude_setup_token != ""
+
+- name: Template auth-profiles.json (Claude setup-token)
+  ansible.builtin.template:
+    src: auth-profiles.json.j2
+    dest: /home/openclaw/.openclaw/agents/main/agent/auth-profiles.json
+    owner: openclaw
+    group: openclaw
+    mode: "0600"
+  when: claude_setup_token != ""
+  notify: Restart openclaw-gateway
 
 - name: Generate gateway token
   ansible.builtin.command:
@@ -66,12 +92,20 @@
     state: started
     enabled: true
 
-- name: Allow OpenClaw gateway port in UFW (loopback only for non-https)
+- name: Allow OpenClaw gateway port in UFW (for Traefik proxy)
   community.general.ufw:
     rule: allow
     port: "18789"
     proto: tcp
   when: access_method == "https"
+
+- name: Deploy Claude setup-token helper script
+  ansible.builtin.template:
+    src: setup-claude-token.sh.j2
+    dest: /home/openclaw/setup-claude-token.sh
+    owner: openclaw
+    group: openclaw
+    mode: "0755"
 
 - name: Display gateway token
   ansible.builtin.debug:

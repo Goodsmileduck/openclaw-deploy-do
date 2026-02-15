@@ -1,0 +1,50 @@
+name: Validate
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  terraform:
+    name: Terraform
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.14.5"
+
+      - name: Generate dummy SSH key for tests
+        run: ssh-keygen -t ed25519 -f ~/.ssh/id_do_ssh -N "" -q
+
+      - name: Terraform Init
+        run: terraform init -backend=false
+
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Test
+        run: terraform test
+
+  ansible:
+    name: Ansible
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Ansible
+        run: pip install ansible
+
+      - name: Ansible Syntax Check
+        run: ansible-playbook ansible/playbook.yml --syntax-check -i localhost,
