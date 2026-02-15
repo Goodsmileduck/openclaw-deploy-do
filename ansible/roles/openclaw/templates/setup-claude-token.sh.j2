@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+echo "=== Claude Setup Token ==="
+echo "This will authenticate your Claude subscription with OpenClaw."
+echo ""
+echo "Step 1: Generate Claude setup token..."
+claude setup-token
+echo ""
+echo "Step 2: Link token to OpenClaw..."
+openclaw models auth setup-token --provider anthropic
+echo ""
+echo "Step 3: Restarting OpenClaw gateway..."
+sudo systemctl restart openclaw-gateway
+echo ""
+echo "=== Done! OpenClaw is now using your Claude subscription. ==="

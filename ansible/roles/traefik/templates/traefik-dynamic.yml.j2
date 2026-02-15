@@ -1,0 +1,15 @@
+http:
+  routers:
+    openclaw:
+      rule: "Host(`{{ domain_name }}`)"
+      entryPoints:
+        - websecure
+      service: openclaw
+      tls:
+        certResolver: letsencrypt
+  services:
+    openclaw:
+      loadBalancer:
+        servers:
+          - url: "http://host.docker.internal:18789"
+        passHostHeader: true

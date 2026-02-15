@@ -22,14 +22,22 @@
     state: started
     enabled: true
 
+- name: Check Tailscale status
+  ansible.builtin.command:
+    cmd: tailscale status --json
+  register: tailscale_status
+  changed_when: false
+  failed_when: false
+
 - name: Authenticate Tailscale
   ansible.builtin.command:
     cmd: "tailscale up --authkey={{ tailscale_auth_key }}"
-  when: tailscale_auth_key != ""
+  when: tailscale_auth_key != "" and (tailscale_status.rc != 0 or (tailscale_status.stdout | from_json).BackendState != "Running")
   changed_when: true
 
 - name: Configure Tailscale serve for OpenClaw gateway
   ansible.builtin.command:
     cmd: "tailscale serve --bg https+insecure://127.0.0.1:18789"
-  changed_when: true
+  register: tailscale_serve_result
+  changed_when: "'already serving' not in (tailscale_serve_result.stderr | default(''))"
   when: tailscale_auth_key != ""

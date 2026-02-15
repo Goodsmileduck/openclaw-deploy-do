@@ -1,0 +1,10 @@
+---
+- name: Reload systemd for backup
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Enable backup timer
+  ansible.builtin.service:
+    name: openclaw-backup.timer
+    state: started
+    enabled: true

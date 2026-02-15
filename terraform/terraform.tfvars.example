@@ -1,7 +1,14 @@
 do_token             = "your-digitalocean-api-token"
-ssh_public_key_path  = "~/.ssh/id_rsa.pub"
+ssh_public_key_path  = "~/.ssh/id_do_ssh.pub"
 region               = "nyc3"
 droplet_size         = "s-2vcpu-4gb"
 droplet_name         = "openclaw-server"
-access_method        = "ssh_tunnel"  # ssh_tunnel | tailscale | https
+access_method        = "ssh_tunnel"  # ssh_tunnel | https
 # domain_name        = "openclaw.example.com"  # Required for https access_method
+# enable_tailscale   = false  # Combinable with any access_method
+
+# Claude setup-token (from: claude setup-token)
+# claude_setup_token = "your-setup-token"
+
+# Telegram bot token (from @BotFather)
+# telegram_bot_token = "your-bot-token"
