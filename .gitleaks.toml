@@ -1,0 +1,10 @@
+[extend]
+# Use default gitleaks rules
+
+[allowlist]
+  description = "Known false positives"
+  paths = [
+    '''terraform/terraform\.tfvars\.example''',
+    '''AI-ASSISTED-SETUP\.md''',
+    '''docs/plans/.*''',
+  ]

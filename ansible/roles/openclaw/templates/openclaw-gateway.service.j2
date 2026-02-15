@@ -8,23 +8,7 @@ Type=simple
 User=openclaw
 Group=openclaw
 WorkingDirectory=/home/openclaw
-{% if llm_api_key != "" %}
-{% if llm_provider == "anthropic" %}
-Environment="ANTHROPIC_API_KEY={{ llm_api_key }}"
-{% elif llm_provider == "openai" %}
-Environment="OPENAI_API_KEY={{ llm_api_key }}"
-{% elif llm_provider == "openrouter" %}
-Environment="OPENROUTER_API_KEY={{ llm_api_key }}"
-{% elif llm_provider == "gemini" %}
-Environment="GEMINI_API_KEY={{ llm_api_key }}"
-{% elif llm_provider == "do_ai" %}
-Environment="DO_AI_API_KEY={{ llm_api_key }}"
-{% elif llm_provider == "gradient" %}
-Environment="GRADIENT_API_KEY={{ llm_api_key }}"
-{% else %}
-Environment="{{ llm_env_var | default('LLM_API_KEY') }}={{ llm_api_key }}"
-{% endif %}
-{% endif %}
+EnvironmentFile=/etc/openclaw/gateway.env
 ExecStart=/usr/bin/openclaw gateway --port 18789 --verbose
 Restart=on-failure
 RestartSec=10

@@ -10,10 +10,12 @@
   register: restic_password_result
   changed_when: false
   when: restic_password == ""
+  no_log: true
 
 - name: Set restic password fact
   ansible.builtin.set_fact:
     _restic_password: "{{ restic_password if restic_password != '' else restic_password_result.stdout }}"
+  no_log: true
 
 - name: Set spaces region fact
   ansible.builtin.set_fact:
@@ -26,6 +28,7 @@
     owner: openclaw
     group: openclaw
     mode: "0600"
+  no_log: true
 
 - name: Initialize restic repository
   ansible.builtin.command:
@@ -40,6 +43,7 @@
   register: restic_init
   changed_when: "'created restic repository' in restic_init.stdout"
   failed_when: "restic_init.rc != 0 and 'already initialized' not in restic_init.stderr"
+  no_log: true
 
 - name: Template backup systemd service
   ansible.builtin.template:
@@ -63,6 +67,15 @@
     state: started
     enabled: true
 
-- name: Display restic password
+- name: Save restic password to local file
+  ansible.builtin.copy:
+    content: "{{ _restic_password }}"
+    dest: "{{ playbook_dir }}/.restic-password"
+    mode: "0600"
+  delegate_to: localhost
+  become: false
+  no_log: true
+
+- name: Notify about restic password
   ansible.builtin.debug:
-    msg: "Restic backup password (SAVE THIS): {{ _restic_password }}"
+    msg: "Restic backup password saved to {{ playbook_dir }}/.restic-password -- back this up securely!"
