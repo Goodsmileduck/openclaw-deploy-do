@@ -7,7 +7,6 @@
     group: root
     mode: "0755"
   loop:
-    - /opt/traefik
     - /opt/traefik/acme
     - /opt/traefik/config
 
@@ -23,7 +22,7 @@
     port: "443"
     proto: tcp
 
-- name: Template Traefik docker-compose
+- name: Template Traefik docker-compose.yml
   ansible.builtin.template:
     src: docker-compose.yml.j2
     dest: /opt/traefik/docker-compose.yml
@@ -42,7 +41,8 @@
     mode: "0644"
   notify: Restart traefik
 
-- name: Start Traefik with docker compose
+- name: Start Traefik
   community.docker.docker_compose_v2:
     project_src: /opt/traefik
     state: present
+    pull: always

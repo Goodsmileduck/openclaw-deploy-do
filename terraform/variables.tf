@@ -70,3 +70,38 @@ variable "telegram_bot_token" {
   default     = ""
   sensitive   = true
 }
+
+variable "openclaw_version" {
+  description = "OpenClaw npm package version"
+  type        = string
+  default     = "latest"
+}
+
+variable "sandbox_mode" {
+  description = "Agent sandbox mode: off, non-main, or all"
+  type        = string
+  default     = "non-main"
+
+  validation {
+    condition     = contains(["off", "non-main", "all"], var.sandbox_mode)
+    error_message = "sandbox_mode must be one of: off, non-main, all"
+  }
+}
+
+variable "llm_providers" {
+  description = "LLM providers — first entry becomes the primary model"
+  type = list(object({
+    name    = string
+    api_key = optional(string, "")
+    model   = optional(string, "")
+  }))
+  default = []
+
+  validation {
+    condition = alltrue([
+      for p in var.llm_providers :
+      contains(["anthropic", "openai", "openrouter", "gemini", "do_ai", "gradient", "custom"], p.name)
+    ])
+    error_message = "Each provider name must be one of: anthropic, openai, openrouter, gemini, do_ai, gradient, custom"
+  }
+}

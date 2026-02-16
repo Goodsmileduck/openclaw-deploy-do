@@ -31,13 +31,10 @@
   no_log: true
 
 - name: Initialize restic repository
-  ansible.builtin.command:
-    cmd: restic init
-  environment:
-    AWS_ACCESS_KEY_ID: "{{ spaces_access_key_id }}"
-    AWS_SECRET_ACCESS_KEY: "{{ spaces_secret_access_key }}"
-    RESTIC_REPOSITORY: "s3:https://{{ _spaces_region }}.digitaloceanspaces.com/{{ spaces_bucket }}/openclaw"
-    RESTIC_PASSWORD: "{{ _restic_password }}"
+  ansible.builtin.shell:
+    cmd: set -a && source /home/openclaw/.restic-env && set +a && restic init
+  args:
+    executable: /bin/bash
   become: true
   become_user: openclaw
   register: restic_init

@@ -8,13 +8,17 @@ access_method: "ssh_tunnel"
 # Tailscale (combinable with any access_method)
 enable_tailscale: false
 
-# LLM Provider: anthropic | openai | do_ai | gradient | custom
-llm_provider: "anthropic"
-llm_api_key: ""  # Pass via --extra-vars or ansible-vault
-llm_model: ""    # Leave empty for provider default
+# LLM Providers — first entry is primary model
+# Each: { name: "anthropic", api_key: "", model: "" }
+llm_providers: []
 
 # OpenClaw
+openclaw_version: "latest"
 openclaw_gateway_token: ""  # Leave empty to auto-generate
+
+# Agent sandboxing (Docker-based isolation)
+sandbox_mode: "non-main"   # off | non-main | all
+sandbox_scope: "session"
 
 # HTTPS / TLS (only when access_method == "https")
 domain_name: ""
@@ -24,9 +28,6 @@ acme_dns_token: ""          # DO API token scoped to DNS (for dns challenge)
 
 # Tailscale auth key (required when enable_tailscale == true)
 tailscale_auth_key: ""  # Pre-auth key from Tailscale admin console
-
-# Custom provider env var name (only when llm_provider == "custom")
-llm_env_var: "LLM_API_KEY"
 
 # Claude setup-token (for Pro/Max subscription auth)
 claude_setup_token: ""

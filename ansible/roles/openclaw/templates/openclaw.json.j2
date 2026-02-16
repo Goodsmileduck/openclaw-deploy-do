@@ -1,22 +1,48 @@
+{% set default_models = {
+  "anthropic": "anthropic/claude-opus-4-6",
+  "openai": "openai/gpt-4o",
+  "do_ai": "do-ai/llama-3.3-70b-instruct",
+  "gemini": "google/gemini-2.0-flash",
+  "openrouter": "anthropic/claude-sonnet-4-5",
+  "gradient": "gradient/llama-3.1-8b",
+} %}
+{% set has_providers = llm_providers | length > 0 %}
+{% set provider_models = [] %}
+{% for p in llm_providers %}
+{% set model_id = p.model or default_models.get(p.name, '') %}
+{% if model_id %}
+{% set _ = provider_models.append(model_id) %}
+{% endif %}
+{% endfor %}
 {
   "agents": {
     "defaults": {
+{% if has_providers %}
+{% set primary = llm_providers[0] %}
       "model": {
-{% if llm_provider == "anthropic" %}
-        "primary": "{{ llm_model or 'anthropic/claude-opus-4-6' }}"
-{% elif llm_provider == "openai" %}
-        "primary": "{{ llm_model or 'openai/gpt-4o' }}"
-{% elif llm_provider == "do_ai" %}
-        "primary": "{{ llm_model or 'do-ai/llama-3.3-70b-instruct' }}"
-{% elif llm_provider == "gradient" %}
-        "primary": "{{ llm_model or 'gradient/llama-3.1-8b' }}"
-{% else %}
-        "primary": "{{ llm_model }}"
-{% endif %}
+        "primary": "{{ primary.model or default_models.get(primary.name, '') }}"
+      },
+      "models": {
+{% for model_id in provider_models %}
+        "{{ model_id }}": {}{{ ',' if not loop.last else '' }}
+{% endfor %}
       }
+{% else %}
+      "model": {
+        "primary": "anthropic/claude-opus-4-6"
+      }
+{% endif %}
+{% if sandbox_mode != "off" %}
+      ,
+      "sandbox": {
+        "mode": "{{ sandbox_mode }}",
+        "scope": "{{ sandbox_scope | default('session') }}",
+        "workspaceAccess": "none"
+      }
+{% endif %}
     }
   },
-{% if llm_provider == "do_ai" %}
+{% if llm_providers | selectattr('name', 'equalto', 'do_ai') | list | length > 0 %}
   "models": {
     "mode": "merge",
     "providers": {
@@ -36,7 +62,7 @@
     "port": 18789,
     "mode": "local",
 {% if access_method == "https" %}
-    "trustedProxies": ["172.17.0.0/16"],
+    "trustedProxies": ["127.0.0.1/8", "172.16.0.0/12"],
 {% endif %}
     "auth": {
       "mode": "token",

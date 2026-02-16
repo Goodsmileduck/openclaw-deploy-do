@@ -16,8 +16,9 @@ fi
 cd "$ROOT_DIR/terraform"
 terraform destroy -auto-approve
 
-# Clean up generated inventory
+# Clean up generated Ansible files (safety net — Terraform should remove these)
 rm -f "$ROOT_DIR/ansible/inventory.ini"
+rm -f "$ROOT_DIR/ansible/terraform_vars.yml"
 
 echo ""
 echo "=== All resources destroyed ==="

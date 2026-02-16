@@ -1,35 +1,84 @@
 ---
-- name: Install NodeSource GPG key
+# --- Node.js 22 + pnpm ---
+- name: Add NodeSource GPG key
   ansible.builtin.get_url:
     url: https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key
     dest: /etc/apt/keyrings/nodesource.asc
     mode: "0644"
 
-- name: Add NodeSource repository for Node.js 22
+- name: Add NodeSource 22.x repository
   ansible.builtin.apt_repository:
     repo: "deb [signed-by=/etc/apt/keyrings/nodesource.asc] https://deb.nodesource.com/node_22.x nodistro main"
     state: present
 
-- name: Install Node.js
+- name: Install Node.js 22
   ansible.builtin.apt:
     name: nodejs
     state: present
     update_cache: true
 
-- name: Install OpenClaw globally
-  community.general.npm:
-    name: openclaw
-    global: true
-    state: present
-  become: true
+- name: Install pnpm globally
+  ansible.builtin.command:
+    cmd: npm install -g pnpm
+    creates: /usr/lib/node_modules/pnpm
 
-- name: Install Claude Code CLI globally
-  community.general.npm:
-    name: "@anthropic-ai/claude-code"
-    global: true
-    state: present
-  become: true
+# --- pnpm directories for openclaw user ---
+- name: Create pnpm global directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: openclaw
+    group: openclaw
+    mode: "0755"
+  loop:
+    - /home/openclaw/.local/share/pnpm/global
+    - /home/openclaw/.local/bin
 
+- name: Configure pnpm global-dir for openclaw user
+  ansible.builtin.command:
+    cmd: pnpm config set global-dir /home/openclaw/.local/share/pnpm/global
+  become: true
+  become_user: openclaw
+  changed_when: true
+
+- name: Configure pnpm global-bin-dir for openclaw user
+  ansible.builtin.command:
+    cmd: pnpm config set global-bin-dir /home/openclaw/.local/bin
+  become: true
+  become_user: openclaw
+  changed_when: true
+
+- name: Ensure PATH includes pnpm bin in .bashrc
+  ansible.builtin.lineinfile:
+    path: /home/openclaw/.bashrc
+    line: 'export PATH="/home/openclaw/.local/bin:$PATH"'
+    create: true
+    owner: openclaw
+    group: openclaw
+    mode: "0644"
+
+# --- Install OpenClaw + Claude Code ---
+- name: Install OpenClaw via pnpm
+  ansible.builtin.command:
+    cmd: pnpm install -g openclaw@{{ openclaw_version }}
+  become: true
+  become_user: openclaw
+  changed_when: true
+  environment:
+    PATH: "/home/openclaw/.local/bin:/home/openclaw/.local/share/pnpm:{{ ansible_env.PATH }}"
+    PNPM_HOME: "/home/openclaw/.local/share/pnpm"
+
+- name: Install Claude Code CLI via pnpm
+  ansible.builtin.command:
+    cmd: pnpm install -g @anthropic-ai/claude-code@latest
+  become: true
+  become_user: openclaw
+  changed_when: true
+  environment:
+    PATH: "/home/openclaw/.local/bin:/home/openclaw/.local/share/pnpm:{{ ansible_env.PATH }}"
+    PNPM_HOME: "/home/openclaw/.local/share/pnpm"
+
+# --- Configuration ---
 - name: Create OpenClaw config directory
   ansible.builtin.file:
     path: /home/openclaw/.openclaw
@@ -98,28 +147,25 @@
   no_log: true
   notify: Restart openclaw-gateway
 
-- name: Template systemd service
+# --- systemd service ---
+- name: Template openclaw-gateway systemd service
   ansible.builtin.template:
     src: openclaw-gateway.service.j2
     dest: /etc/systemd/system/openclaw-gateway.service
+    owner: root
+    group: root
     mode: "0644"
   notify:
     - Reload systemd
     - Restart openclaw-gateway
 
-- name: Enable and start OpenClaw gateway
+- name: Enable and start openclaw-gateway
   ansible.builtin.service:
     name: openclaw-gateway
     state: started
     enabled: true
 
-- name: Allow OpenClaw gateway port in UFW (for Traefik proxy)
-  community.general.ufw:
-    rule: allow
-    port: "18789"
-    proto: tcp
-  when: access_method == "https"
-
+# --- Helpers ---
 - name: Deploy Claude setup-token helper script
   ansible.builtin.template:
     src: setup-claude-token.sh.j2

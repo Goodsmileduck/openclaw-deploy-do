@@ -5,7 +5,7 @@ This guide enables AI coding assistants (Claude Code, Cursor, Codex, Gemini, etc
 ## Overview
 
 - Uses **Terraform** for infrastructure provisioning (droplet, firewall, DNS)
-- Uses **Ansible** for server configuration (hardening, Docker, OpenClaw, optional Traefik/Tailscale/backup)
+- Uses **Ansible** for server configuration (hardening, Docker, native OpenClaw + agent sandboxing, optional Traefik/Tailscale/backup)
 - Orchestrated via `scripts/deploy.sh` which runs both in sequence
 - Two access methods: SSH tunnel (default), HTTPS (via Traefik)
 - Tailscale can be enabled alongside either access method
@@ -214,23 +214,29 @@ curl -I https://<your-domain>
 
 OpenClaw needs an LLM provider to function. Choose one of these approaches.
 
-### Option A: API Key at Deploy Time
+### Option A: API Key(s) at Deploy Time
 
 Pass the key directly during deployment.
 
 #### Prompt
 
 ```
-Deploy OpenClaw with my Anthropic API key.
+Deploy OpenClaw with my LLM providers.
 
-Run the deployment with:
-./scripts/deploy.sh --extra-vars "llm_api_key=<my-api-key>"
+1. Add to terraform/terraform.tfvars:
+   # Single provider:
+   llm_providers = [
+     { name = "anthropic", api_key = "<my-api-key>" },
+   ]
 
-Or for a different provider:
-./scripts/deploy.sh --extra-vars "llm_provider=openai llm_api_key=<my-openai-key>"
+   # Or multiple providers (first = primary, switch at runtime via /model):
+   llm_providers = [
+     { name = "anthropic", api_key = "<anthropic-key>" },
+     { name = "openai", api_key = "<openai-key>" },
+   ]
 
-# For DigitalOcean AI:
-./scripts/deploy.sh --extra-vars "llm_provider=do_ai llm_api_key=<my-do-ai-key>"
+2. Run the deployment:
+   ./scripts/deploy.sh
 
 After deployment, verify the LLM connection:
 - SSH into the server
@@ -257,9 +263,7 @@ Deploy OpenClaw with Claude setup-token authentication.
 
 3. After deployment, SSH into the server and complete auth setup:
    ssh openclaw@<droplet-ip>
-   claude setup-token
-   openclaw models auth setup-token --provider anthropic
-   sudo systemctl restart openclaw-gateway
+   ./setup-claude-token.sh
 
 4. Verify the connection is working.
 
@@ -281,8 +285,8 @@ Deploy OpenClaw without an LLM key — I'll configure it later.
 
 2. After deployment, show me how to:
    - SSH into the server
-   - Add an API key to the systemd service environment
-   - Restart the gateway
+   - Add an API key to /etc/openclaw/gateway.env
+   - Restart the gateway container
    - Verify the LLM connection
 
 The gateway will start but won't be able to process LLM requests until a key is added.
@@ -322,10 +326,11 @@ Add a Telegram bot channel to my OpenClaw deployment.
 2. Re-run the deployment to apply:
    ./scripts/deploy.sh
 
-3. After deployment:
-   - Verify the Telegram channel is configured in openclaw.json
-   - Check the gateway logs for Telegram connection
-   - Send a test message to my bot
+3. After deployment, approve pairing requests:
+   ./scripts/openclaw-cmd.sh pairing approve telegram <CODE>
+
+4. Verify:
+   ./scripts/openclaw-cmd.sh channels status --probe
 
 Reference ansible/roles/openclaw/templates/openclaw.json.j2 for the Telegram config.
 ```
@@ -345,22 +350,17 @@ WhatsApp requires scanning a QR code, which is challenging for AI assistants.
 ```
 Help me connect WhatsApp to my OpenClaw deployment.
 
-1. SSH into the server:
-   ssh openclaw@<droplet-ip>
+1. Run the interactive WhatsApp login:
+   ./scripts/openclaw-cmd.sh -i channels login --channel whatsapp
 
-2. Run the WhatsApp login command:
-   openclaw channels login --channel whatsapp
-
-3. I'll scan the QR code with my phone.
+2. I'll scan the QR code with my phone.
    Walk me through the process:
    - What to look for in WhatsApp settings
    - How to scan the QR code
    - How to verify the connection
 
-4. After linking:
-   - Restart the gateway: sudo systemctl restart openclaw-gateway
-   - Verify: openclaw channels status --probe
-   - Send a test message
+3. After linking, verify:
+   ./scripts/openclaw-cmd.sh channels status --probe
 
 Note: The QR code step requires my manual interaction —
 guide me through it step by step.
@@ -369,12 +369,16 @@ guide me through it step by step.
 ### Verification
 
 ```bash
-# Check channel status
-openclaw channels status --probe
-# Should show channels as linked and connected
+# Check channel status (from local machine, no SSH needed)
+./scripts/openclaw-cmd.sh channels status --probe
 
-# View gateway logs
-sudo journalctl -u openclaw-gateway -f
+# Or via SSH tunnel for sustained management
+./scripts/openclaw-tunnel.sh start
+openclaw channels status --probe
+./scripts/openclaw-tunnel.sh stop
+
+# View gateway logs (on server)
+./scripts/openclaw-cmd.sh -i -- sudo journalctl -u openclaw-gateway -f
 ```
 
 ---
@@ -491,8 +495,12 @@ cd ansible && ansible-playbook -i inventory.ini playbook.yml
 
 | File | Purpose |
 | --- | --- |
-| `scripts/deploy.sh` | End-to-end deployment orchestrator |
+| `scripts/deploy.sh` | Thin orchestrator: terraform apply then ansible-playbook |
 | `scripts/destroy.sh` | Infrastructure teardown |
+| `scripts/openclaw-cmd.sh` | Run openclaw commands on server via SSH |
+| `scripts/openclaw-tunnel.sh` | SSH tunnel manager for local openclaw CLI |
+| `ansible/terraform_vars.yml` | Auto-generated by Terraform (secrets, gitignored) |
+| `ansible/inventory.ini` | Auto-generated by Terraform (gitignored) |
 | `terraform/terraform.tfvars.example` | Example Terraform config |
 | `terraform/variables.tf` | All input variables with validation |
 | `ansible/group_vars/all.yml` | Default Ansible variables |
@@ -505,30 +513,28 @@ cd ansible && ansible-playbook -i inventory.ini playbook.yml
 
 ```bash
 # Deployment
-./scripts/deploy.sh                                    # Full deploy
-./scripts/deploy.sh --extra-vars "llm_api_key=sk-..."  # Deploy with API key
+./scripts/deploy.sh                                    # Full deploy (reads terraform.tfvars)
 ./scripts/destroy.sh                                   # Tear down everything
 
-# Server management (after SSH)
-sudo systemctl status openclaw-gateway    # Check gateway status
-sudo systemctl restart openclaw-gateway   # Restart gateway
-sudo journalctl -u openclaw-gateway -f    # Follow gateway logs
+# Remote openclaw commands (no SSH needed)
+./scripts/openclaw-cmd.sh doctor                       # Health check
+./scripts/openclaw-cmd.sh pairing approve telegram <CODE>  # Approve pairing
+./scripts/openclaw-cmd.sh channels status --probe      # Channel status
+./scripts/openclaw-cmd.sh -i channels login --channel whatsapp  # Interactive (QR code)
 
-# Traefik (HTTPS mode)
-docker ps | grep traefik                  # Check Traefik container
-docker logs traefik                       # Traefik logs
+# SSH tunnel for sustained management (requires local openclaw install)
+./scripts/openclaw-tunnel.sh start                     # Start tunnel
+openclaw doctor                                        # Use local CLI
+./scripts/openclaw-tunnel.sh stop                      # Stop tunnel
+
+# Server management (after SSH)
+sudo systemctl status openclaw-gateway       # Check gateway status
+sudo systemctl restart openclaw-gateway      # Restart gateway
+sudo journalctl -u openclaw-gateway -f       # Follow logs
 
 # Backup
 sudo systemctl status openclaw-backup.timer   # Check backup timer
-source ~/.restic-env && restic snapshots      # List snapshots
-
-# OpenClaw commands (on server)
-openclaw gateway health --url ws://127.0.0.1:18789
-openclaw channels status --probe
-openclaw channels login --channel whatsapp
-
-# SSH tunnel for gateway access
-ssh -L 18789:localhost:18789 openclaw@<droplet-ip>
+source ~/.restic-env && restic snapshots  # List snapshots
 ```
 
 ### Troubleshooting
@@ -537,9 +543,9 @@ ssh -L 18789:localhost:18789 openclaw@<droplet-ip>
 | --- | --- |
 | Terraform fails with auth error | Verify `do_token` in `terraform.tfvars` |
 | Ansible can't connect | Wait for droplet boot; check SSH key path |
-| Gateway not starting | Check logs: `sudo journalctl -u openclaw-gateway -e` |
-| LLM requests failing | Verify API key: check systemd env vars |
-| Traefik not starting | Check `docker logs traefik`; verify ports 80/443 not in use |
+| Gateway not starting | Check logs: `sudo journalctl -u openclaw-gateway --no-pager -n 50` |
+| LLM requests failing | Verify API key in `/etc/openclaw/gateway.env` |
+| Traefik not starting | Check `sudo docker compose -f /opt/traefik/docker-compose.yml logs traefik`; verify ports 80/443 not in use |
 | TLS certificate fails (DNS) | Verify `acme_dns_token` has DNS write access |
 | TLS certificate fails (HTTP) | Ensure DNS points to droplet IP, port 80 open |
 | Tailscale not connecting | Check auth key validity and `tailscale status` |
@@ -553,39 +559,54 @@ ssh -L 18789:localhost:18789 openclaw@<droplet-ip>
 ┌─────────────────────────────────────────────────┐
 │                 Local Machine                    │
 │                                                  │
-│  terraform.tfvars ──► deploy.sh ──► inventory.ini│
+│  terraform.tfvars ──► deploy.sh                  │
 │                          │                       │
 │              ┌───────────┴───────────┐           │
 │              ▼                       ▼           │
 │         Terraform              Ansible           │
 │      (provisions DO           (configures        │
-│       infrastructure)          server)            │
+│       infrastructure,          server)            │
+│       generates:                                 │
+│       inventory.ini,                             │
+│       terraform_vars.yml)                        │
 └──────────────┬───────────────────┬───────────────┘
                │                   │
                ▼                   ▼
 ┌─────────────────────────────────────────────────┐
 │            DigitalOcean Droplet                  │
 │                                                  │
-│  ┌──────────┐  ┌─────────┐  ┌────────────────┐  │
-│  │   UFW    │  │ fail2ban│  │   Docker       │  │
-│  │ Firewall │  │         │  │  (sandbox +    │  │
-│  └──────────┘  └─────────┘  │   Traefik)     │  │
-│                              └────────────────┘  │
+│  ┌──────────┐  ┌─────────┐                       │
+│  │   UFW    │  │ fail2ban│                       │
+│  │ Firewall │  │         │                       │
+│  └──────────┘  └─────────┘                       │
 │                                                  │
-│  ┌────────────────────────────────────────────┐  │
-│  │      OpenClaw Gateway (:18789)             │  │
-│  │  ┌─────────┐  ┌──────────┐  ┌──────────┐  │  │
-│  │  │Anthropic│  │ Channels │  │ Control  │  │  │
-│  │  │ OpenAI  │  │ Telegram │  │   UI     │  │  │
-│  │  │ DO AI   │  │ WhatsApp │  │ /openclaw│  │  │
-│  │  │ etc.    │  │ Discord  │  │          │  │  │
-│  │  └─────────┘  └──────────┘  └──────────┘  │  │
-│  └────────────────────────────────────────────┘  │
+│  ┌─── Native (systemd) ──────────────────────┐  │
+│  │                                             │  │
+│  │  ┌──────────────────────────────────────┐   │  │
+│  │  │   OpenClaw Gateway (:18789)          │   │  │
+│  │  │   Node.js + pnpm (openclaw-gateway)  │   │  │
+│  │  │  ┌─────────┐ ┌──────────┐ ┌──────┐  │   │  │
+│  │  │  │Anthropic│ │ Channels │ │CtrlUI│  │   │  │
+│  │  │  │ OpenAI  │ │ Telegram │ │/open │  │   │  │
+│  │  │  │ DO AI   │ │ WhatsApp │ │ claw │  │   │  │
+│  │  │  └─────────┘ └──────────┘ └──────┘  │   │  │
+│  │  └──────────────────────────────────────┘   │  │
+│  │                                             │  │
+│  │  ┌──────────┐                               │  │
+│  │  │  Restic  │  (native, backup)             │  │
+│  │  └──────────┘                               │  │
+│  └─────────────────────────────────────────────┘  │
 │                                                  │
-│  ┌──────────┐  ┌──────────┐  ┌───────────────┐  │
-│  │ Traefik  │  │  Restic  │  │  Tailscale    │  │
-│  │ (https)  │  │ (backup) │  │  (optional)   │  │
-│  └──────────┘  └──────────┘  └───────────────┘  │
+│  ┌─── Docker ────────────────────────────────┐  │
+│  │  ┌──────────┐  ┌──────────────────────┐   │  │
+│  │  │ Traefik  │  │  Agent Sandboxes     │   │  │
+│  │  │ (https)  │  │  (managed by gateway)│   │  │
+│  │  └──────────┘  └──────────────────────┘   │  │
+│  └───────────────────────────────────────────┘  │
+│                                                  │
+│  ┌───────────────┐                               │
+│  │  Tailscale    │  (native, optional)           │
+│  └───────────────┘                               │
 └─────────────────────────────────────────────────┘
 ```
 

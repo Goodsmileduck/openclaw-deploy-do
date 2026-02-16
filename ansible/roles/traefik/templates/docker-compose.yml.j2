@@ -14,11 +14,11 @@ services:
         limits:
           memory: 256M
           cpus: "0.50"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "80:80"
       - "443:443"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     volumes:
       - /opt/traefik/acme:/acme
       - /opt/traefik/config:/config:ro

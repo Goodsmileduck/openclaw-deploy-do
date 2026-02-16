@@ -4,6 +4,19 @@
   become: true
   gather_facts: true
 
+  pre_tasks:
+    - name: Check for Terraform vars file
+      ansible.builtin.stat:
+        path: "{{ playbook_dir }}/terraform_vars.yml"
+      register: _terraform_vars
+      delegate_to: localhost
+      become: false
+
+    - name: Load Terraform-generated variables
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/terraform_vars.yml"
+      when: _terraform_vars.stat.exists
+
   roles:
     - role: common
 
@@ -63,4 +76,9 @@
             ssh openclaw@{{ ansible_host }}
             openclaw channels add
           {% endif %}
+
+          Management commands (on server):
+            sudo systemctl status openclaw-gateway
+            sudo journalctl -u openclaw-gateway -f
+            sudo systemctl restart openclaw-gateway
           ============================================

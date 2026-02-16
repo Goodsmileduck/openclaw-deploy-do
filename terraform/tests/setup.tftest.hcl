@@ -1,5 +1,6 @@
 # terraform/tests/setup.tftest.hcl
 mock_provider "digitalocean" {}
+mock_provider "local" {}
 
 variables {
   do_token            = "mock-token-for-testing"

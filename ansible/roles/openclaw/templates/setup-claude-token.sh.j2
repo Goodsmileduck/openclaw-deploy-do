@@ -3,11 +3,26 @@ set -euo pipefail
 echo "=== Claude Setup Token ==="
 echo "This will authenticate your Claude subscription with OpenClaw."
 echo ""
-echo "Step 1: Generate Claude setup token..."
-claude setup-token
+echo "Step 1: Generate a setup token at https://console.anthropic.com/"
+echo "        and paste it below."
 echo ""
-echo "Step 2: Link token to OpenClaw..."
-openclaw models auth setup-token --provider anthropic
+read -rp "Setup token (sk-ant-oat01-...): " TOKEN
+echo ""
+echo "Step 2: Writing auth-profiles.json..."
+mkdir -p ~/.openclaw/agents/main/agent
+cat > ~/.openclaw/agents/main/agent/auth-profiles.json <<EOF
+{
+  "version": 1,
+  "profiles": {
+    "anthropic:manual": {
+      "type": "token",
+      "provider": "anthropic",
+      "token": "$TOKEN"
+    }
+  }
+}
+EOF
+chmod 600 ~/.openclaw/agents/main/agent/auth-profiles.json
 echo ""
 echo "Step 3: Restarting OpenClaw gateway..."
 sudo systemctl restart openclaw-gateway
