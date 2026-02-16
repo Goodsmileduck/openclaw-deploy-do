@@ -467,6 +467,45 @@ Confirm before proceeding — this is irreversible.
 
 ---
 
+## Pre-baked Image (Faster Deploys)
+
+Build a custom DigitalOcean snapshot with all packages pre-installed. Reduces deploy time from ~15-20 minutes to ~3-5 minutes.
+
+### Build the Image
+
+```bash
+# Install Packer (if not already installed)
+# macOS: brew install packer
+# Linux: see https://developer.hashicorp.com/packer/install
+
+# Build the snapshot
+cd packer
+packer init .
+packer build -var "do_token=$DO_TOKEN" .
+# Note the snapshot ID from the output
+```
+
+### Use the Image
+
+```
+Deploy OpenClaw using a pre-baked image for faster setup.
+
+1. Add to terraform/terraform.tfvars:
+   - custom_image_id = "<snapshot-id-from-packer-build>"
+
+2. Run the deployment normally:
+   ./scripts/deploy.sh
+
+The deployment will skip package installation (already in the image)
+and only configure services, secrets, and deploy OpenClaw CLI.
+```
+
+### Fallback to Vanilla Ubuntu
+
+Leave `custom_image_id` empty or remove it from `terraform.tfvars` to deploy on a fresh Ubuntu 24.04 image with full Ansible installation.
+
+---
+
 ## Deployment Modes
 
 | Mode             | When to Use                              |
@@ -507,6 +546,7 @@ cd ansible && ansible-playbook -i inventory.ini playbook.yml
 | `ansible/playbook.yml` | Main Ansible playbook |
 | `ansible/roles/traefik/` | Traefik v3 reverse proxy (replaces nginx) |
 | `ansible/roles/backup/` | Restic backup to DO Spaces |
+| `packer/openclaw-base.pkr.hcl` | Packer template for pre-baked droplet image |
 | `CLAUDE.md` | Project conventions for AI assistants |
 
 ### Important Commands

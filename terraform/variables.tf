@@ -88,6 +88,12 @@ variable "sandbox_mode" {
   }
 }
 
+variable "custom_image_id" {
+  description = "Pre-baked DigitalOcean snapshot ID. Leave empty for vanilla Ubuntu 24.04."
+  type        = string
+  default     = ""
+}
+
 variable "llm_providers" {
   description = "LLM providers — first entry becomes the primary model"
   type = list(object({

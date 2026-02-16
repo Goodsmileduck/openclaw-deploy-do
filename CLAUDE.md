@@ -21,6 +21,9 @@ cd terraform && terraform test
 
 # Ansible (installed in venv)
 cd ansible && ansible-playbook playbook.yml --syntax-check
+
+# Packer (validate only — build requires DO token)
+cd packer && packer init . && PKR_VAR_do_token=validation-only packer validate .
 ```
 
 ## Project Structure
@@ -39,9 +42,15 @@ terraform/          # Flat Terraform root module (no nested modules)
     firewall.tftest.hcl     # Conditional inbound rules per access_method
     dns.tftest.hcl          # DNS resources conditional on domain_name
     outputs.tftest.hcl      # gateway_url format, output passthrough
+    image.tftest.hcl        # custom_image_id + use_prebaked_image logic
+
+packer/               # Packer HCL2 template for pre-baked DigitalOcean snapshot
+  openclaw-base.pkr.hcl  # Builder config + provisioner chain
+  scripts/               # Shell provisioners (base, docker, nodejs, extras, cleanup)
 
 .github/workflows/
-  validate.yml        # PR pipeline: terraform (init, fmt, validate, test) + ansible syntax check
+  validate.yml        # PR pipeline: terraform + ansible + packer validation
+  build-image.yml     # Packer build: on push to packer/**, weekly schedule, manual dispatch
 
 ansible/            # Ansible with roles-based structure
   playbook.yml      # Main playbook — conditionally includes roles
@@ -69,6 +78,7 @@ scripts/
 - **Templates:** Jinja2 (`.j2` extension) for Ansible templates.
 - **Native deployment:** OpenClaw gateway runs natively via Node.js + pnpm as a systemd service (`openclaw-gateway`). Docker is used for agent sandboxing and Traefik (at `/opt/traefik/`). Restic runs natively via apt.
 - **Conditional roles:** traefik applied when `access_method == "https"`, tailscale when `enable_tailscale`, backup when `enable_backup`.
+- **Pre-baked image:** When `use_prebaked_image` is true (set automatically via `custom_image_id`), Ansible skips package installation tasks in all roles (apt, GPG keys, repos). Config templating and service management always run.
 - **Ubuntu 24.04:** SSH service is `ssh`, not `sshd`.
 - **AI-ASSISTED-SETUP.md:** After any change to variables, scripts, roles, access methods, or deployment flow, update `AI-ASSISTED-SETUP.md` to keep the AI-assisted prompts and reference tables accurate.
 
@@ -77,7 +87,17 @@ scripts/
 - **Framework:** Native `terraform test` with `mock_provider "digitalocean" {}` + `mock_provider "local" {}` — no real API calls, no DO token needed.
 - **tfvars auto-loading:** `terraform test` auto-loads `terraform.tfvars` if present. Tests must explicitly set variables in `run` blocks to stay deterministic. Only `do_token` and `ssh_public_key_path` go in the file-level `variables` block.
 - **SSH key dependency:** `main.tf` uses `file(pathexpand(var.ssh_public_key_path))` which runs even with mock providers. Tests use `~/.ssh/id_do_ssh.pub` locally; CI generates a dummy key via `ssh-keygen`.
-- **CI pipeline:** `.github/workflows/validate.yml` runs on PRs to main. Two parallel jobs: terraform (init, fmt, validate, test) and ansible (syntax check). No secrets required.
+- **CI pipeline:** `.github/workflows/validate.yml` runs on PRs to main. Three parallel jobs: terraform (init, fmt, validate, test), ansible (syntax check), packer (init, fmt, validate). No secrets required.
+
+## Packer Image
+
+- **Template:** `packer/openclaw-base.pkr.hcl` — DigitalOcean builder with 5 shell provisioners.
+- **Pre-baked contents:** Ubuntu 24.04 + apt upgrade, common packages, Docker CE + daemon.json, Node.js 22 + pnpm, Tailscale, restic, openclaw user + directories, SSH hardening, UFW, fail2ban.
+- **Build:** `cd packer && packer init . && packer build -var "do_token=$DO_TOKEN" .`
+- **Use:** Set `custom_image_id = "<snapshot-id>"` in `terraform.tfvars`. Terraform automatically passes `use_prebaked_image = true` to Ansible.
+- **Fallback:** Leave `custom_image_id` empty (default) for full Ansible install on vanilla Ubuntu.
+- **CI:** `.github/workflows/build-image.yml` is an example workflow (disabled by default, only `workflow_dispatch` enabled). Uncomment `push`/`schedule` triggers and add `DO_API_TOKEN` secret to enable automated builds.
+- **Maintenance:** Packer scripts mirror the package-install portions of Ansible roles. When adding packages to a role, update the corresponding Packer script.
 
 ## Variable Flow
 
@@ -102,12 +122,14 @@ scripts/
 | `telegram_bot_token` | `""` | Telegram bot token (sensitive) |
 | `openclaw_version` | `"latest"` | OpenClaw npm package version |
 | `sandbox_mode` | `"non-main"` | Agent sandbox: `off`, `non-main`, `all` |
+| `custom_image_id` | `""` | Pre-baked snapshot ID (empty = vanilla Ubuntu 24.04) |
 | `llm_providers` | `[]` | List of `{ name, api_key, model }` — first is primary |
 
 ### Ansible-only variables (in `group_vars/all.yml`, via `--extra-vars` or ansible-vault)
 
 | Variable | Default | Description |
 |----------|---------|-------------|
+| `use_prebaked_image` | `false` | Skip package installs (set automatically by Terraform when `custom_image_id` is provided) |
 | `enable_backup` | `false` | Restic backup to DO Spaces |
 | `enable_control_ui` | `true` | OpenClaw Control UI at `/openclaw` |
 | `acme_email` | `""` | ACME email (for https) |

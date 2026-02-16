@@ -3,6 +3,7 @@
   ansible.builtin.apt:
     name: restic
     state: present
+  when: not use_prebaked_image
 
 - name: Generate restic password
   ansible.builtin.command:

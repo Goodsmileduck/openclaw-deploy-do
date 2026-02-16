@@ -6,12 +6,13 @@ locals {
   # then conditionally include optional secrets only when provided.
   ansible_vars = merge(
     {
-      region           = var.region
-      access_method    = var.access_method
-      enable_tailscale = var.enable_tailscale
-      openclaw_version = var.openclaw_version
-      sandbox_mode     = var.sandbox_mode
-      llm_providers    = var.llm_providers
+      region             = var.region
+      access_method      = var.access_method
+      enable_tailscale   = var.enable_tailscale
+      openclaw_version   = var.openclaw_version
+      sandbox_mode       = var.sandbox_mode
+      llm_providers      = var.llm_providers
+      use_prebaked_image = var.custom_image_id != ""
     },
     var.domain_name != "" ? { domain_name = var.domain_name } : {},
     var.claude_setup_token != "" ? { claude_setup_token = var.claude_setup_token } : {},
@@ -30,7 +31,7 @@ resource "digitalocean_droplet" "openclaw" {
   name     = var.droplet_name
   region   = var.region
   size     = var.droplet_size
-  image    = "ubuntu-24-04-x64"
+  image    = var.custom_image_id != "" ? var.custom_image_id : "ubuntu-24-04-x64"
   ssh_keys = [digitalocean_ssh_key.openclaw.fingerprint]
 
   tags = ["openclaw"]

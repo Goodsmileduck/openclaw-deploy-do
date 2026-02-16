@@ -48,3 +48,25 @@ jobs:
 
       - name: Ansible Syntax Check
         run: ansible-playbook ansible/playbook.yml --syntax-check -i localhost,
+
+  packer:
+    name: Packer
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packer
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-packer@main
+
+      - name: Packer Init
+        run: packer init .
+
+      - name: Packer Format Check
+        run: packer fmt -check .
+
+      - name: Packer Validate
+        run: packer validate .
+        env:
+          PKR_VAR_do_token: "validation-only"
