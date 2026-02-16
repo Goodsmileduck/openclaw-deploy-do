@@ -4,17 +4,20 @@
     url: https://pkgs.tailscale.com/stable/ubuntu/{{ ansible_distribution_release }}.noarmor.gpg
     dest: /etc/apt/keyrings/tailscale.gpg
     mode: "0644"
+  when: not use_prebaked_image
 
 - name: Add Tailscale repository
   ansible.builtin.apt_repository:
     repo: "deb [signed-by=/etc/apt/keyrings/tailscale.gpg] https://pkgs.tailscale.com/stable/ubuntu {{ ansible_distribution_release }} main"
     state: present
+  when: not use_prebaked_image
 
 - name: Install Tailscale
   ansible.builtin.apt:
     name: tailscale
     state: present
     update_cache: true
+  when: not use_prebaked_image
 
 - name: Enable and start Tailscale
   ansible.builtin.service:

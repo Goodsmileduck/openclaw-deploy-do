@@ -3,6 +3,7 @@
   ansible.builtin.apt:
     update_cache: true
     cache_valid_time: 3600
+  when: not use_prebaked_image
 
 - name: Install base packages
   ansible.builtin.apt:
@@ -15,6 +16,7 @@
       - curl
       - gnupg
     state: present
+  when: not use_prebaked_image
 
 - name: Create openclaw user
   ansible.builtin.user:

@@ -1,0 +1,57 @@
+name: Build Image
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "packer/**"
+  schedule:
+    # Weekly on Sunday at 04:00 UTC
+    - cron: "0 4 * * 0"
+  workflow_dispatch:
+
+jobs:
+  validate:
+    name: Validate Packer
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packer
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-packer@main
+
+      - name: Packer Init
+        run: packer init .
+
+      - name: Packer Format Check
+        run: packer fmt -check .
+
+      - name: Packer Validate
+        run: packer validate .
+        env:
+          PKR_VAR_do_token: "validation-only"
+
+  build:
+    name: Build Snapshot
+    needs: validate
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packer
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-packer@main
+
+      - name: Packer Init
+        run: packer init .
+
+      - name: Build Image
+        run: packer build .
+        env:
+          PKR_VAR_do_token: ${{ secrets.DO_API_TOKEN }}
+
+      - name: Summary
+        run: echo "Snapshot built successfully. Check DigitalOcean console for the new image." >> "$GITHUB_STEP_SUMMARY"

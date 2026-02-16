@@ -5,22 +5,26 @@
     url: https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key
     dest: /etc/apt/keyrings/nodesource.asc
     mode: "0644"
+  when: not use_prebaked_image
 
 - name: Add NodeSource 22.x repository
   ansible.builtin.apt_repository:
     repo: "deb [signed-by=/etc/apt/keyrings/nodesource.asc] https://deb.nodesource.com/node_22.x nodistro main"
     state: present
+  when: not use_prebaked_image
 
 - name: Install Node.js 22
   ansible.builtin.apt:
     name: nodejs
     state: present
     update_cache: true
+  when: not use_prebaked_image
 
 - name: Install pnpm globally
   ansible.builtin.command:
     cmd: npm install -g pnpm
     creates: /usr/lib/node_modules/pnpm
+  when: not use_prebaked_image
 
 # --- pnpm directories for openclaw user ---
 - name: Create pnpm global directories
@@ -33,6 +37,7 @@
   loop:
     - /home/openclaw/.local/share/pnpm/global
     - /home/openclaw/.local/bin
+  when: not use_prebaked_image
 
 - name: Configure pnpm global-dir for openclaw user
   ansible.builtin.command:
@@ -40,6 +45,7 @@
   become: true
   become_user: openclaw
   changed_when: true
+  when: not use_prebaked_image
 
 - name: Configure pnpm global-bin-dir for openclaw user
   ansible.builtin.command:
@@ -47,6 +53,7 @@
   become: true
   become_user: openclaw
   changed_when: true
+  when: not use_prebaked_image
 
 - name: Ensure PATH includes pnpm bin in .bashrc
   ansible.builtin.lineinfile:
@@ -56,6 +63,7 @@
     owner: openclaw
     group: openclaw
     mode: "0644"
+  when: not use_prebaked_image
 
 # --- Install OpenClaw + Claude Code ---
 - name: Install OpenClaw via pnpm

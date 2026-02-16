@@ -4,11 +4,13 @@
     url: https://download.docker.com/linux/ubuntu/gpg
     dest: /etc/apt/keyrings/docker.asc
     mode: "0644"
+  when: not use_prebaked_image
 
 - name: Add Docker repository
   ansible.builtin.apt_repository:
     repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
     state: present
+  when: not use_prebaked_image
 
 - name: Install Docker CE
   ansible.builtin.apt:
@@ -20,6 +22,7 @@
       - docker-buildx-plugin
     state: present
     update_cache: true
+  when: not use_prebaked_image
 
 - name: Add openclaw user to docker group
   ansible.builtin.user:

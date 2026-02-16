@@ -1,4 +1,7 @@
 ---
+# Pre-baked image: skip package installation tasks
+use_prebaked_image: false
+
 # SSH
 ssh_public_key_path: "~/.ssh/id_do_ssh.pub"
 
