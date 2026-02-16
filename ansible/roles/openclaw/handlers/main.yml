@@ -1,5 +1,9 @@
 ---
-- name: Restart openclaw stack
-  community.docker.docker_compose_v2:
-    project_src: /opt/openclaw
+- name: Reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Restart openclaw-gateway
+  ansible.builtin.service:
+    name: openclaw-gateway
     state: restarted

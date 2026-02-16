@@ -1,5 +1,6 @@
 # terraform/tests/outputs.tftest.hcl
 mock_provider "digitalocean" {}
+mock_provider "local" {}
 
 variables {
   do_token            = "mock-token-for-testing"
@@ -46,16 +47,19 @@ run "output_access_method_matches_input" {
   }
 }
 
-run "output_enable_tailscale_passthrough" {
+run "output_llm_providers_passthrough" {
   command = plan
 
   variables {
-    access_method    = "ssh_tunnel"
-    enable_tailscale = true
+    access_method = "ssh_tunnel"
+    llm_providers = [
+      { name = "openai" },
+      { name = "anthropic" },
+    ]
   }
 
   assert {
-    condition     = output.enable_tailscale == true
-    error_message = "enable_tailscale output should pass through the variable"
+    condition     = output.llm_providers == ["openai", "anthropic"]
+    error_message = "llm_providers output should list provider names"
   }
 }

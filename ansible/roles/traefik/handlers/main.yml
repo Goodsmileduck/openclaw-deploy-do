@@ -1,5 +1,5 @@
 ---
-- name: Restart openclaw stack
+- name: Restart traefik
   community.docker.docker_compose_v2:
-    project_src: /opt/openclaw
+    project_src: /opt/traefik
     state: restarted

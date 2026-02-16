@@ -1,4 +1,9 @@
 ---
+- name: Install restic
+  ansible.builtin.apt:
+    name: restic
+    state: present
+
 - name: Generate restic password
   ansible.builtin.command:
     cmd: openssl rand -hex 32
@@ -26,8 +31,12 @@
   no_log: true
 
 - name: Initialize restic repository
-  ansible.builtin.command:
-    cmd: docker compose -f /opt/openclaw/docker-compose.yml run --rm restic restic init
+  ansible.builtin.shell:
+    cmd: set -a && source /home/openclaw/.restic-env && set +a && restic init
+  args:
+    executable: /bin/bash
+  become: true
+  become_user: openclaw
   register: restic_init
   changed_when: "'created restic repository' in restic_init.stdout"
   failed_when: "restic_init.rc != 0 and 'already initialized' not in restic_init.stderr"

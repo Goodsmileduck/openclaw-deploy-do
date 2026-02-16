@@ -25,6 +25,6 @@ EOF
 chmod 600 ~/.openclaw/agents/main/agent/auth-profiles.json
 echo ""
 echo "Step 3: Restarting OpenClaw gateway..."
-sudo docker compose -f /opt/openclaw/docker-compose.yml restart openclaw
+sudo systemctl restart openclaw-gateway
 echo ""
 echo "=== Done! OpenClaw is now using your Claude subscription. ==="

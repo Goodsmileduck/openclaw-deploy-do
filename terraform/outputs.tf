@@ -22,34 +22,17 @@ output "gateway_url" {
   )
 }
 
-output "region" {
-  description = "DigitalOcean region (passed through to Ansible)"
-  value       = var.region
-}
-
-output "enable_tailscale" {
-  description = "Whether Tailscale is enabled"
-  value       = var.enable_tailscale
-}
-
 output "ssh_command" {
   description = "SSH command to access the Droplet"
   value       = "ssh openclaw@${digitalocean_droplet.openclaw.ipv4_address}"
 }
 
-output "ssh_public_key_path" {
-  description = "SSH public key path (used by deploy.sh to derive private key)"
-  value       = var.ssh_public_key_path
+output "ssh_private_key_path" {
+  description = "SSH private key path (derived from public key path)"
+  value       = local.ssh_private_key_path
 }
 
-output "claude_setup_token" {
-  description = "Claude setup token (passed through to Ansible)"
-  value       = var.claude_setup_token
-  sensitive   = true
-}
-
-output "telegram_bot_token" {
-  description = "Telegram bot token (passed through to Ansible)"
-  value       = var.telegram_bot_token
-  sensitive   = true
+output "llm_providers" {
+  description = "Configured LLM providers"
+  value       = [for p in var.llm_providers : p.name]
 }

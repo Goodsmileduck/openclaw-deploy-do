@@ -12,3 +12,29 @@ access_method        = "ssh_tunnel"  # ssh_tunnel | https
 
 # Telegram bot token (from @BotFather)
 # telegram_bot_token = "your-bot-token"
+
+# OpenClaw version (npm package)
+# openclaw_version   = "latest"
+
+# Agent sandbox mode: off | non-main | all
+# sandbox_mode       = "non-main"
+
+# DigitalOcean project name
+# project_name       = "OpenClaw"
+
+# LLM providers — first is primary, add more for runtime switching via /model
+# llm_providers = [
+#   { name = "anthropic", api_key = "" },
+#   { name = "openai", api_key = "" },
+#   { name = "openrouter", api_key = "" },
+# ]
+
+# ---------------------------------------------------------------------------
+# Ansible-only variables (not managed by Terraform)
+# Edit ansible/group_vars/all.yml or pass via --extra-vars / ansible-vault:
+#   acme_email, acme_challenge, acme_dns_token   — HTTPS/TLS settings
+#   enable_backup, spaces_*, restic_password      — Restic backup to DO Spaces
+#   enable_control_ui                             — OpenClaw Control UI
+#   openclaw_channels                             — Channel integrations
+#   tailscale_auth_key                            — Tailscale pre-auth key
+# ---------------------------------------------------------------------------

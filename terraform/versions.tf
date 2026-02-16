@@ -6,5 +6,9 @@ terraform {
       source  = "digitalocean/digitalocean"
       version = "~> 2.40"
     }
+    local = {
+      source  = "hashicorp/local"
+      version = "~> 2.5"
+    }
   }
 }
