@@ -103,6 +103,7 @@ These flow to Ansible automatically via a generated `terraform_vars.yml` file.
 | `telegram_bot_token` | `""` | Telegram bot token from @BotFather |
 | `openclaw_version` | `"latest"` | OpenClaw npm package version |
 | `sandbox_mode` | `"non-main"` | Agent sandbox: `off`, `non-main`, `all` |
+| `custom_image_id` | `""` | Pre-baked snapshot ID (see [Pre-baked Image](#pre-baked-image-optional)) |
 | `llm_providers` | `[]` | List of `{ name, api_key, model }` -- first is primary |
 
 ### Ansible-Only Variables (`ansible/group_vars/all.yml`)
@@ -167,6 +168,70 @@ enable_tailscale = true
 | `scripts/destroy.sh` | Destroys all DigitalOcean resources and cleans up generated files. |
 | `scripts/openclaw-cmd.sh` | Run openclaw CLI commands on the server via SSH. Use `-i` for interactive. |
 | `scripts/openclaw-tunnel.sh` | Manage an SSH tunnel (`start`, `stop`, `status`) for local openclaw CLI usage. |
+
+## Pre-baked Image (Optional)
+
+By default, each deploy installs all packages from scratch on a fresh Ubuntu 24.04 droplet (~15-20 minutes). You can build a custom DigitalOcean snapshot with [Packer](https://www.packer.io/) that pre-installs everything, reducing deploy time to ~3-5 minutes.
+
+### What's Pre-baked
+
+The snapshot includes: Ubuntu 24.04 with security patches, Docker CE, Node.js 22, pnpm, Tailscale, restic, UFW + fail2ban, SSH hardening, and the `openclaw` user with directory structure. Services are enabled but not started.
+
+### What's NOT Pre-baked
+
+Everything deployment-specific stays in Ansible: SSH authorized keys, OpenClaw CLI (version may vary), all config files, API keys/tokens, Traefik config, service startup.
+
+### Build and Use
+
+```bash
+# Install Packer: https://developer.hashicorp.com/packer/install
+
+# Build the snapshot (~7-8 minutes)
+cd packer
+packer init .
+packer build -var "do_token=$DO_TOKEN" .
+# Note the snapshot ID from the output
+
+# Use it — add to terraform.tfvars:
+# custom_image_id = "<snapshot-id>"
+
+# Deploy as usual
+./scripts/deploy.sh
+```
+
+### When to Use It
+
+- **Frequent deploys or rebuilds** — saves 10-15 minutes each time
+- **CI/CD pipelines** — predictable, faster infrastructure provisioning
+- **Testing** — spin up and tear down servers quickly
+- **Multiple environments** — same base image across staging/production
+
+### When NOT to Use It
+
+- **One-time deploy** — the build itself takes ~8 minutes, so there's no net savings on a single deploy
+- **Heavily customized base OS** — if you need packages or configs not in the standard roles, you'll need to update the Packer scripts separately
+- **Cross-region deploys** — snapshots are region-specific; you'd need to build one per region or copy snapshots (adds time/cost)
+
+### Limitations
+
+- **Snapshots are private** — only visible to your DigitalOcean account. Not shareable via URL.
+- **Region-bound** — built in one region (default `nyc3`). To use in another region, either build there or copy the snapshot.
+- **Maintenance overhead** — when you add packages to an Ansible role, the corresponding Packer script needs updating too. They can drift if not kept in sync.
+- **Snapshot storage cost** — DigitalOcean charges $0.06/GB/month for snapshots. The image is ~3-4 GB.
+- **No automatic updates** — the image freezes package versions at build time. Security patches come from `unattended-upgrades` after the droplet boots, not from the image itself. Rebuild periodically (the CI workflow runs weekly by default).
+
+### Automated Rebuilds
+
+The `.github/workflows/build-image.yml` workflow rebuilds the image:
+- On push to `packer/**` files (merged to main)
+- Weekly on Sunday at 04:00 UTC
+- Manually via `workflow_dispatch`
+
+Requires a `DO_API_TOKEN` secret in your GitHub repository settings.
+
+### Fallback
+
+Leave `custom_image_id` empty (the default) to deploy on vanilla Ubuntu 24.04 with full Ansible installation. The Ansible playbook works identically either way.
 
 ## Post-Deploy
 
