@@ -220,14 +220,13 @@ packer build -var "do_token=$DO_TOKEN" .
 - **Snapshot storage cost** — DigitalOcean charges $0.06/GB/month for snapshots. The image is ~3-4 GB.
 - **No automatic updates** — the image freezes package versions at build time. Security patches come from `unattended-upgrades` after the droplet boots, not from the image itself. Rebuild periodically (the CI workflow runs weekly by default).
 
-### Automated Rebuilds
+### Automated Rebuilds (Optional)
 
-The `.github/workflows/build-image.yml` workflow rebuilds the image:
-- On push to `packer/**` files (merged to main)
-- Weekly on Sunday at 04:00 UTC
-- Manually via `workflow_dispatch`
+An example CI workflow is included at `.github/workflows/build-image.yml` (disabled by default). To enable automated image builds:
 
-Requires a `DO_API_TOKEN` secret in your GitHub repository settings.
+1. Add a `DO_API_TOKEN` secret to your GitHub repository settings
+2. Uncomment the `push` and `schedule` triggers in the workflow file
+3. The workflow will then rebuild the image on `packer/**` changes, weekly, or via manual dispatch
 
 ### Fallback
 

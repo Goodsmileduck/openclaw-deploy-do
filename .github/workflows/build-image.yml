@@ -1,14 +1,25 @@
+# Example workflow for automated Packer image builds.
+# Disabled by default — to enable, uncomment the triggers below and add
+# a DO_API_TOKEN secret to your GitHub repository settings.
+#
+# Usage:
+#   1. Go to Settings > Secrets > Actions in your GitHub repo
+#   2. Add DO_API_TOKEN with your DigitalOcean API token
+#   3. Uncomment the 'on:' block below
+#   4. The workflow will build on packer/ changes, weekly, or manual dispatch
+
 name: Build Image
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "packer/**"
-  schedule:
-    # Weekly on Sunday at 04:00 UTC
-    - cron: "0 4 * * 0"
-  workflow_dispatch:
+  workflow_dispatch:  # keep manual trigger for on-demand builds
+  # Uncomment below to enable automatic builds:
+  # push:
+  #   branches: [main]
+  #   paths:
+  #     - "packer/**"
+  # schedule:
+  #   # Weekly on Sunday at 04:00 UTC
+  #   - cron: "0 4 * * 0"
 
 jobs:
   validate:

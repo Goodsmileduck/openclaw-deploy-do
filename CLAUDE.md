@@ -96,7 +96,7 @@ scripts/
 - **Build:** `cd packer && packer init . && packer build -var "do_token=$DO_TOKEN" .`
 - **Use:** Set `custom_image_id = "<snapshot-id>"` in `terraform.tfvars`. Terraform automatically passes `use_prebaked_image = true` to Ansible.
 - **Fallback:** Leave `custom_image_id` empty (default) for full Ansible install on vanilla Ubuntu.
-- **CI:** `.github/workflows/build-image.yml` builds on push to `packer/**`, weekly schedule, or manual dispatch. Requires `DO_API_TOKEN` secret.
+- **CI:** `.github/workflows/build-image.yml` is an example workflow (disabled by default, only `workflow_dispatch` enabled). Uncomment `push`/`schedule` triggers and add `DO_API_TOKEN` secret to enable automated builds.
 - **Maintenance:** Packer scripts mirror the package-install portions of Ansible roles. When adding packages to a role, update the corresponding Packer script.
 
 ## Variable Flow
