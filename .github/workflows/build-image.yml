@@ -21,6 +21,9 @@ on:
   #   # Weekly on Sunday at 04:00 UTC
   #   - cron: "0 4 * * 0"
 
+permissions:
+  contents: read
+
 jobs:
   validate:
     name: Validate Packer
@@ -29,9 +32,9 @@ jobs:
       run:
         working-directory: packer
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
 
-      - uses: hashicorp/setup-packer@main
+      - uses: hashicorp/setup-packer@7e22a1322f99184aed11b12e1a7d9862203ca31a  # main
 
       - name: Packer Init
         run: packer init .
@@ -52,9 +55,9 @@ jobs:
       run:
         working-directory: packer
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
 
-      - uses: hashicorp/setup-packer@main
+      - uses: hashicorp/setup-packer@7e22a1322f99184aed11b12e1a7d9862203ca31a  # main
 
       - name: Packer Init
         run: packer init .
