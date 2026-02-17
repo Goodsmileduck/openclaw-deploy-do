@@ -121,20 +121,6 @@ variable "enable_backup" {
   default     = false
 }
 
-variable "spaces_access_key_id" {
-  description = "DigitalOcean Spaces access key (required when enable_backup is true)"
-  type        = string
-  default     = ""
-  sensitive   = true
-}
-
-variable "spaces_secret_access_key" {
-  description = "DigitalOcean Spaces secret key (required when enable_backup is true)"
-  type        = string
-  default     = ""
-  sensitive   = true
-}
-
 variable "llm_providers" {
   description = "LLM providers — first entry becomes the primary model"
   type = list(object({

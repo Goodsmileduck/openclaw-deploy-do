@@ -45,6 +45,7 @@ terraform/          # Flat Terraform root module (no nested modules)
     image.tftest.hcl        # custom_image_id + use_prebaked_image logic
     version.tftest.hcl      # openclaw_version pinning when access_method=https
     ssh_cidrs.tftest.hcl    # SSH source IP restriction validation
+    backup.tftest.hcl       # Spaces bucket + key creation, naming, ansible_vars injection
 
 packer/               # Packer HCL2 template for pre-baked DigitalOcean snapshot
   openclaw-base.pkr.hcl  # Builder config + provisioner chain
@@ -165,10 +166,10 @@ ansible-playbook playbook.yml --tags traefik
 | `sandbox_mode` | `"non-main"` | Agent sandbox: `off`, `non-main`, `all` |
 | `ssh_allowed_cidrs` | `[]` | CIDRs allowed to SSH (empty = open to all) |
 | `custom_image_id` | `""` | Pre-baked snapshot ID (empty = vanilla Ubuntu 24.04) |
-| `enable_backup` | `false` | Restic backup to DO Spaces |
-| `spaces_access_key_id` | `""` | DO Spaces access key (for backup, sensitive) |
-| `spaces_secret_access_key` | `""` | DO Spaces secret key (for backup, sensitive) |
+| `enable_backup` | `false` | Restic backup to DO Spaces — Terraform auto-creates bucket (`<droplet_name>-backups`) and Spaces key |
 | `llm_providers` | `[]` | List of `{ name, api_key, model }` — first is primary |
+
+> **Backup note:** When `enable_backup = true`, Terraform creates the Spaces bucket and a scoped access key automatically. The bucket has `prevent_destroy = true` — it survives `terraform destroy` and must be manually deleted from the DO console to protect backup data.
 
 ### Ansible-only variables (in `group_vars/all.yml`, via `--extra-vars` or ansible-vault)
 

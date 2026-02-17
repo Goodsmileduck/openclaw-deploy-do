@@ -27,12 +27,12 @@ locals {
 }
 
 source "digitalocean" "openclaw-base" {
-  api_token     = var.do_token
-  image         = "ubuntu-24-04-x64"
-  region        = var.region
-  size          = "s-1vcpu-1gb"
-  ssh_username  = "root"
-  snapshot_name = local.snapshot_name
+  api_token        = var.do_token
+  image            = "ubuntu-24-04-x64"
+  region           = var.region
+  size             = "s-1vcpu-1gb"
+  ssh_username     = "root"
+  snapshot_name    = local.snapshot_name
   snapshot_regions = [var.region]
 }
 

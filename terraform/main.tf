@@ -21,8 +21,8 @@ locals {
     var.brave_api_key != "" ? { brave_api_key = var.brave_api_key } : {},
     var.enable_backup ? {
       enable_backup            = true
-      spaces_access_key_id     = var.spaces_access_key_id
-      spaces_secret_access_key = var.spaces_secret_access_key
+      spaces_access_key_id     = digitalocean_spaces_key.openclaw_backup[0].access_key
+      spaces_secret_access_key = digitalocean_spaces_key.openclaw_backup[0].secret_key
       spaces_bucket            = digitalocean_spaces_bucket.openclaw_backup[0].name
     } : {},
   )
@@ -134,11 +134,17 @@ resource "digitalocean_spaces_bucket" "openclaw_backup" {
 
   lifecycle {
     prevent_destroy = true
+  }
+}
 
-    precondition {
-      condition     = var.spaces_access_key_id != "" && var.spaces_secret_access_key != ""
-      error_message = "spaces_access_key_id and spaces_secret_access_key are required when enable_backup is true"
-    }
+# Spaces access key for backup
+resource "digitalocean_spaces_key" "openclaw_backup" {
+  count = var.enable_backup ? 1 : 0
+  name  = "${var.droplet_name}-backup-key"
+
+  grant {
+    bucket     = digitalocean_spaces_bucket.openclaw_backup[0].name
+    permission = "readwrite"
   }
 }
 

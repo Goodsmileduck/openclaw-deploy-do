@@ -142,9 +142,7 @@ run "enable_backup_accepts_true" {
   command = plan
 
   variables {
-    enable_backup            = true
-    spaces_access_key_id     = "mock-spaces-key"
-    spaces_secret_access_key = "mock-spaces-secret"
+    enable_backup = true
   }
 
   assert {

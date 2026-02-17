@@ -30,11 +30,8 @@ access_method        = "ssh_tunnel"  # ssh_tunnel | https
 # Build with: cd packer && packer build -var "do_token=$DO_TOKEN" .
 # custom_image_id    = "123456789"
 
-# Backup to DO Spaces (requires Spaces access keys)
-# Get keys at: https://cloud.digitalocean.com/account/api/spaces
-# enable_backup            = true
-# spaces_access_key_id     = "your-spaces-access-key"
-# spaces_secret_access_key = "your-spaces-secret-key"
+# Backup to DO Spaces — Terraform creates the bucket and access key automatically
+# enable_backup = true
 
 # LLM providers — first is primary, add more for runtime switching via /model
 # llm_providers = [
