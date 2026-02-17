@@ -1,0 +1,11 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Run OpenClaw Health Check every 5 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+RandomizedDelaySec=30s
+
+[Install]
+WantedBy=timers.target

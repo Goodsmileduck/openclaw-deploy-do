@@ -4,6 +4,7 @@
     name: restic
     state: present
   when: not use_prebaked_image
+  tags: [install]
 
 - name: Generate restic password
   ansible.builtin.command:
@@ -12,15 +13,18 @@
   changed_when: false
   when: restic_password == ""
   no_log: true
+  tags: [config]
 
 - name: Set restic password fact
   ansible.builtin.set_fact:
     _restic_password: "{{ restic_password if restic_password != '' else restic_password_result.stdout }}"
   no_log: true
+  tags: [config]
 
 - name: Set spaces region fact
   ansible.builtin.set_fact:
     _spaces_region: "{{ spaces_region if spaces_region != '' else region | default('nyc3') }}"
+  tags: [config]
 
 - name: Template restic environment file
   ansible.builtin.template:
@@ -30,6 +34,7 @@
     group: openclaw
     mode: "0600"
   no_log: true
+  tags: [config]
 
 - name: Initialize restic repository
   ansible.builtin.shell:
@@ -42,6 +47,7 @@
   changed_when: "'created restic repository' in restic_init.stdout"
   failed_when: "restic_init.rc != 0 and 'already initialized' not in restic_init.stderr"
   no_log: true
+  tags: [config]
 
 - name: Template backup systemd service
   ansible.builtin.template:
@@ -49,6 +55,7 @@
     dest: /etc/systemd/system/openclaw-backup.service
     mode: "0644"
   notify: Reload systemd for backup
+  tags: [service]
 
 - name: Template backup systemd timer
   ansible.builtin.template:
@@ -58,12 +65,38 @@
   notify:
     - Reload systemd for backup
     - Enable backup timer
+  tags: [service]
 
 - name: Enable and start backup timer
   ansible.builtin.service:
     name: openclaw-backup.timer
     state: started
     enabled: true
+  tags: [service]
+
+- name: Template backup check systemd service
+  ansible.builtin.template:
+    src: openclaw-backup-check.service.j2
+    dest: /etc/systemd/system/openclaw-backup-check.service
+    mode: "0644"
+  notify: Reload systemd for backup
+  tags: [service]
+
+- name: Template backup check systemd timer
+  ansible.builtin.template:
+    src: openclaw-backup-check.timer.j2
+    dest: /etc/systemd/system/openclaw-backup-check.timer
+    mode: "0644"
+  notify:
+    - Reload systemd for backup
+  tags: [service]
+
+- name: Enable and start backup check timer
+  ansible.builtin.service:
+    name: openclaw-backup-check.timer
+    state: started
+    enabled: true
+  tags: [service]
 
 - name: Save restic password to local file
   ansible.builtin.copy:
@@ -73,7 +106,9 @@
   delegate_to: localhost
   become: false
   no_log: true
+  tags: [config]
 
 - name: Notify about restic password
   ansible.builtin.debug:
     msg: "Restic backup password saved to {{ playbook_dir }}/.restic-password -- back this up securely!"
+  tags: [config]

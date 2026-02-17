@@ -11,7 +11,8 @@ run "firewall_https_opens_web_ports" {
   command = plan
 
   variables {
-    access_method = "https"
+    access_method    = "https"
+    openclaw_version = "1.0.0"
   }
 
   assert {

@@ -1,9 +1,16 @@
 ---
+- name: Wait for cloud-init to finish
+  ansible.builtin.command: cloud-init status --wait
+  changed_when: false
+  when: not use_prebaked_image
+  tags: [install]
+
 - name: Update apt cache
   ansible.builtin.apt:
     update_cache: true
     cache_valid_time: 3600
   when: not use_prebaked_image
+  tags: [install]
 
 - name: Install base packages
   ansible.builtin.apt:
@@ -17,6 +24,7 @@
       - gnupg
     state: present
   when: not use_prebaked_image
+  tags: [install]
 
 - name: Create openclaw user
   ansible.builtin.user:
@@ -25,6 +33,7 @@
     groups: sudo
     append: true
     create_home: true
+  tags: [config]
 
 - name: Allow openclaw user passwordless sudo
   ansible.builtin.copy:
@@ -32,12 +41,14 @@
     dest: /etc/sudoers.d/openclaw
     mode: "0440"
     validate: "visudo -cf %s"
+  tags: [config]
 
 - name: Copy SSH authorized keys to openclaw user
   ansible.posix.authorized_key:
     user: openclaw
     key: "{{ lookup('file', ssh_public_key_path) }}"
     state: present
+  tags: [config]
 
 - name: Harden SSH configuration
   ansible.builtin.blockinfile:
@@ -56,6 +67,7 @@
       Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.com
       MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com
   notify: Restart sshd
+  tags: [security]
 
 - name: Configure UFW defaults
   community.general.ufw:
@@ -64,6 +76,7 @@
   loop:
     - { direction: incoming, policy: deny }
     - { direction: outgoing, policy: allow }
+  tags: [security]
 
 - name: Remove old SSH allow rule (replaced by rate-limit)
   community.general.ufw:
@@ -72,16 +85,30 @@
     proto: tcp
     delete: true
   failed_when: false
+  tags: [security]
 
-- name: Rate-limit SSH through UFW
+- name: Rate-limit SSH through UFW (open to all)
   community.general.ufw:
     rule: limit
     port: "22"
     proto: tcp
+  when: ssh_allowed_cidrs | length == 0
+  tags: [security]
+
+- name: Allow SSH from restricted CIDRs only
+  community.general.ufw:
+    rule: limit
+    port: "22"
+    proto: tcp
+    from_ip: "{{ item }}"
+  loop: "{{ ssh_allowed_cidrs }}"
+  when: ssh_allowed_cidrs | length > 0
+  tags: [security]
 
 - name: Enable UFW
   community.general.ufw:
     state: enabled
+  tags: [security]
 
 - name: Configure fail2ban for SSH
   ansible.builtin.copy:
@@ -95,8 +122,56 @@
     dest: /etc/fail2ban/jail.local
     mode: "0644"
   notify: Restart fail2ban
+  tags: [security]
 
 - name: Enable unattended-upgrades
   ansible.builtin.dpkg_selections:
     name: unattended-upgrades
     selection: install
+  tags: [security]
+
+# --- Kernel and System Hardening ---
+
+- name: Install needrestart
+  ansible.builtin.apt:
+    name: needrestart
+    state: present
+  when: not use_prebaked_image
+  tags: [install]
+
+- name: Apply sysctl hardening
+  ansible.builtin.template:
+    src: sysctl-hardening.conf.j2
+    dest: /etc/sysctl.d/99-hardening.conf
+    mode: "0644"
+  notify: Reload sysctl
+  tags: [security]
+
+- name: Configure unattended-upgrades
+  ansible.builtin.template:
+    src: 50unattended-upgrades.j2
+    dest: /etc/apt/apt.conf.d/50unattended-upgrades
+    mode: "0644"
+  tags: [security]
+
+- name: Configure automatic upgrade schedule
+  ansible.builtin.template:
+    src: 20auto-upgrades.j2
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    mode: "0644"
+  tags: [security]
+
+- name: Configure needrestart for automatic restarts
+  ansible.builtin.template:
+    src: needrestart.conf.j2
+    dest: /etc/needrestart/conf.d/90-openclaw.conf
+    mode: "0644"
+  tags: [security]
+
+- name: Configure journald
+  ansible.builtin.template:
+    src: journald.conf.j2
+    dest: /etc/systemd/journald.conf
+    mode: "0644"
+  notify: Restart journald
+  tags: [config]

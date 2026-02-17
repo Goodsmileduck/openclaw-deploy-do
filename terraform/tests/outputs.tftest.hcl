@@ -24,8 +24,9 @@ run "output_gateway_url_https" {
   command = plan
 
   variables {
-    access_method = "https"
-    domain_name   = "openclaw.example.com"
+    access_method    = "https"
+    domain_name      = "openclaw.example.com"
+    openclaw_version = "1.0.0"
   }
 
   assert {
@@ -38,7 +39,8 @@ run "output_access_method_matches_input" {
   command = plan
 
   variables {
-    access_method = "https"
+    access_method    = "https"
+    openclaw_version = "1.0.0"
   }
 
   assert {

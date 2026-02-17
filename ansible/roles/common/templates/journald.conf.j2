@@ -1,0 +1,22 @@
+# {{ ansible_managed }}
+[Journal]
+# Persistent storage
+Storage=persistent
+
+# Limit disk usage
+SystemMaxUse=500M
+SystemKeepFree=1G
+SystemMaxFileSize=50M
+
+# Limit runtime journal
+RuntimeMaxUse=100M
+
+# Compress large journal entries
+Compress=yes
+
+# Rate limiting
+RateLimitIntervalSec=30s
+RateLimitBurst=10000
+
+# Forward to syslog
+ForwardToSyslog=no

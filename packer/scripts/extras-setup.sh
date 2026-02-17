@@ -17,4 +17,13 @@ systemctl enable tailscaled
 
 apt-get install -y restic
 
+# --- Google Chrome (for browser tool) ---
+curl -fsSL https://dl.google.com/linux/linux_signing_key.pub \
+  -o /etc/apt/keyrings/google-chrome.asc
+chmod a+r /etc/apt/keyrings/google-chrome.asc
+echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/google-chrome.asc] https://dl.google.com/linux/chrome/deb/ stable main" \
+  > /etc/apt/sources.list.d/google-chrome.list
+apt-get update
+apt-get install -y google-chrome-stable
+
 echo "=== extras-setup.sh complete ==="

@@ -1,0 +1,19 @@
+#!/bin/bash
+# {{ ansible_managed }}
+# Health check for OpenClaw gateway
+
+HEALTH_URL="http://localhost:18789/health"
+MAX_RETRIES=3
+RETRY_DELAY=5
+
+for i in $(seq 1 $MAX_RETRIES); do
+    if curl -sf --max-time 10 "$HEALTH_URL" > /dev/null 2>&1; then
+        exit 0
+    fi
+    if [ "$i" -lt "$MAX_RETRIES" ]; then
+        sleep $RETRY_DELAY
+    fi
+done
+
+echo "OpenClaw gateway health check failed after $MAX_RETRIES attempts"
+exit 1

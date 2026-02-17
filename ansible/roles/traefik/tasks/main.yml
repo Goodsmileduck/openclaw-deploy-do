@@ -9,18 +9,22 @@
   loop:
     - /opt/traefik/acme
     - /opt/traefik/config
+    - /opt/traefik/logs
+  tags: [config]
 
 - name: Allow HTTP through UFW
   community.general.ufw:
     rule: allow
     port: "80"
     proto: tcp
+  tags: [security]
 
 - name: Allow HTTPS through UFW
   community.general.ufw:
     rule: allow
     port: "443"
     proto: tcp
+  tags: [security]
 
 - name: Template Traefik docker-compose.yml
   ansible.builtin.template:
@@ -31,6 +35,7 @@
     mode: "0600"
   no_log: true
   notify: Restart traefik
+  tags: [config]
 
 - name: Template Traefik dynamic config
   ansible.builtin.template:
@@ -40,9 +45,42 @@
     group: root
     mode: "0644"
   notify: Restart traefik
+  tags: [config]
+
+- name: Configure logrotate for Traefik
+  ansible.builtin.template:
+    src: logrotate-traefik.j2
+    dest: /etc/logrotate.d/traefik
+    owner: root
+    group: root
+    mode: "0644"
+  tags: [config]
+
+- name: Deploy fail2ban filter for Traefik
+  ansible.builtin.template:
+    src: fail2ban-filter-traefik.conf.j2
+    dest: /etc/fail2ban/filter.d/traefik-auth.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart fail2ban
+  when: traefik_fail2ban
+  tags: [security]
+
+- name: Deploy fail2ban jail for Traefik
+  ansible.builtin.template:
+    src: fail2ban-jail-traefik.conf.j2
+    dest: /etc/fail2ban/jail.d/traefik.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart fail2ban
+  when: traefik_fail2ban
+  tags: [security]
 
 - name: Start Traefik
   community.docker.docker_compose_v2:
     project_src: /opt/traefik
     state: present
     pull: always
+  tags: [service]

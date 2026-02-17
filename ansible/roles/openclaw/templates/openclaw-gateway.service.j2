@@ -2,6 +2,9 @@
 Description=OpenClaw Gateway
 After=network-online.target docker.service
 Wants=network-online.target docker.service
+{% if telegram_bot_token != "" and telegram_alert_chat_id != "" %}
+OnFailure=openclaw-alert@%n.service
+{% endif %}
 
 [Service]
 Type=simple
@@ -17,7 +20,7 @@ NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=read-only
 PrivateTmp=true
-ReadWritePaths=/home/openclaw/.openclaw /home/openclaw/.local
+ReadWritePaths=/home/openclaw/.openclaw /home/openclaw/.local{% if enable_browser | default(false) | bool %} /home/openclaw/.config{% endif %}
 
 [Install]
 WantedBy=multi-user.target

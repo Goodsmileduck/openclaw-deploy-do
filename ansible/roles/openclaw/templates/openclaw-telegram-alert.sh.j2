@@ -1,0 +1,27 @@
+#!/bin/bash
+# {{ ansible_managed }}
+# Send alert to Telegram when a systemd service fails
+
+UNIT_NAME="${1:-unknown}"
+HOSTNAME=$(hostname)
+TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S %Z')
+
+BOT_TOKEN="{{ telegram_bot_token }}"
+CHAT_ID="{{ telegram_alert_chat_id }}"
+
+MESSAGE="⚠️ *Service Alert*
+
+Host: \`${HOSTNAME}\`
+Service: \`${UNIT_NAME}\`
+Status: FAILED
+Time: ${TIMESTAMP}
+
+Check with: \`sudo systemctl status ${UNIT_NAME}\`
+Logs: \`sudo journalctl -u ${UNIT_NAME} -n 50\`"
+
+curl -sf --max-time 10 \
+    "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+    -d "chat_id=${CHAT_ID}" \
+    -d "text=${MESSAGE}" \
+    -d "parse_mode=Markdown" \
+    > /dev/null 2>&1

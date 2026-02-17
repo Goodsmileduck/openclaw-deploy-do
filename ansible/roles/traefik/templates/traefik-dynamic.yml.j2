@@ -5,6 +5,11 @@ http:
       entryPoints:
         - websecure
       service: openclaw
+      middlewares:
+        - rate-limit
+{% if traefik_basic_auth | length > 0 %}
+        - basic-auth
+{% endif %}
       tls:
         certResolver: letsencrypt
   services:
@@ -13,3 +18,16 @@ http:
         servers:
           - url: "http://host.docker.internal:18789"
         passHostHeader: true
+  middlewares:
+    rate-limit:
+      rateLimit:
+        average: {{ traefik_rate_limit_average }}
+        burst: {{ traefik_rate_limit_burst }}
+{% if traefik_basic_auth | length > 0 %}
+    basic-auth:
+      basicAuth:
+        users:
+{% for user in traefik_basic_auth %}
+          - "{{ user }}"
+{% endfor %}
+{% endif %}

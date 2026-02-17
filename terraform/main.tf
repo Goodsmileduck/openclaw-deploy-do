@@ -13,10 +13,18 @@ locals {
       sandbox_mode       = var.sandbox_mode
       llm_providers      = var.llm_providers
       use_prebaked_image = var.custom_image_id != ""
+      ssh_allowed_cidrs  = var.ssh_allowed_cidrs
     },
     var.domain_name != "" ? { domain_name = var.domain_name } : {},
     var.claude_setup_token != "" ? { claude_setup_token = var.claude_setup_token } : {},
     var.telegram_bot_token != "" ? { telegram_bot_token = var.telegram_bot_token } : {},
+    var.brave_api_key != "" ? { brave_api_key = var.brave_api_key } : {},
+    var.enable_backup ? {
+      enable_backup            = true
+      spaces_access_key_id     = var.spaces_access_key_id
+      spaces_secret_access_key = var.spaces_secret_access_key
+      spaces_bucket            = digitalocean_spaces_bucket.openclaw_backup[0].name
+    } : {},
   )
 }
 
@@ -28,11 +36,32 @@ resource "digitalocean_ssh_key" "openclaw" {
 
 # Droplet
 resource "digitalocean_droplet" "openclaw" {
-  name     = var.droplet_name
-  region   = var.region
-  size     = var.droplet_size
-  image    = var.custom_image_id != "" ? var.custom_image_id : "ubuntu-24-04-x64"
-  ssh_keys = [digitalocean_ssh_key.openclaw.fingerprint]
+  name       = var.droplet_name
+  region     = var.region
+  size       = var.droplet_size
+  image      = var.custom_image_id != "" ? var.custom_image_id : "ubuntu-24-04-x64"
+  ssh_keys   = [digitalocean_ssh_key.openclaw.fingerprint]
+  monitoring = true
+
+  # Create openclaw user at boot so Ansible never needs root SSH
+  user_data = <<-EOF
+    #!/bin/bash
+    useradd -m -s /bin/bash -G sudo openclaw
+    echo "openclaw ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/openclaw
+    chmod 0440 /etc/sudoers.d/openclaw
+    mkdir -p /home/openclaw/.ssh
+    cp /root/.ssh/authorized_keys /home/openclaw/.ssh/authorized_keys
+    chown -R openclaw:openclaw /home/openclaw/.ssh
+    chmod 700 /home/openclaw/.ssh
+    chmod 600 /home/openclaw/.ssh/authorized_keys
+  EOF
+
+  lifecycle {
+    precondition {
+      condition     = !(var.access_method == "https" && var.openclaw_version == "latest")
+      error_message = "openclaw_version must be pinned to a specific version when access_method is 'https' (not 'latest')"
+    }
+  }
 
   tags = ["openclaw"]
 }
@@ -46,7 +75,7 @@ resource "digitalocean_firewall" "openclaw" {
   inbound_rule {
     protocol         = "tcp"
     port_range       = "22"
-    source_addresses = ["0.0.0.0/0", "::/0"]
+    source_addresses = length(var.ssh_allowed_cidrs) > 0 ? var.ssh_allowed_cidrs : ["0.0.0.0/0", "::/0"]
   }
 
   # OpenClaw Gateway — only open publicly if https access
@@ -97,6 +126,22 @@ resource "digitalocean_project" "openclaw" {
   resources   = [digitalocean_droplet.openclaw.urn]
 }
 
+# Backup bucket (DO Spaces)
+resource "digitalocean_spaces_bucket" "openclaw_backup" {
+  count  = var.enable_backup ? 1 : 0
+  name   = "${var.droplet_name}-backups"
+  region = var.region
+
+  lifecycle {
+    prevent_destroy = true
+
+    precondition {
+      condition     = var.spaces_access_key_id != "" && var.spaces_secret_access_key != ""
+      error_message = "spaces_access_key_id and spaces_secret_access_key are required when enable_backup is true"
+    }
+  }
+}
+
 # Optional DNS
 resource "digitalocean_domain" "openclaw" {
   count = var.domain_name != "" ? 1 : 0
@@ -124,7 +169,7 @@ resource "local_file" "ansible_inventory" {
   file_permission = "0644"
   content = join("\n", [
     "[openclaw]",
-    "openclaw-server ansible_host=${digitalocean_droplet.openclaw.ipv4_address} ansible_user=root ansible_ssh_private_key_file=${local.ssh_private_key_path}",
+    "openclaw-server ansible_host=${digitalocean_droplet.openclaw.ipv4_address} ansible_user=openclaw ansible_become=true ansible_ssh_private_key_file=${local.ssh_private_key_path}",
     "",
   ])
 }

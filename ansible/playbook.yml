@@ -11,29 +11,60 @@
       register: _terraform_vars
       delegate_to: localhost
       become: false
+      tags: [always]
 
     - name: Load Terraform-generated variables
       ansible.builtin.include_vars:
         file: "{{ playbook_dir }}/terraform_vars.yml"
       when: _terraform_vars.stat.exists
+      tags: [always]
 
   roles:
     - role: common
+      tags: [common]
 
     - role: docker
+      tags: [docker]
 
     - role: openclaw
+      tags: [openclaw]
 
     - role: traefik
+      tags: [traefik]
       when: access_method == "https"
 
     - role: tailscale
+      tags: [tailscale]
       when: enable_tailscale | bool
 
     - role: backup
+      tags: [backup]
       when: enable_backup | bool
 
+    - role: monitoring
+      tags: [monitoring]
+      when: enable_monitoring | bool
+
   post_tasks:
+    - name: Run OpenClaw doctor check
+      ansible.builtin.command:
+        cmd: /home/openclaw/.local/bin/openclaw doctor --fix
+      become: true
+      become_user: openclaw
+      environment:
+        PATH: "/home/openclaw/.local/bin:/home/openclaw/.local/share/pnpm:{{ ansible_env.PATH }}"
+        HOME: "/home/openclaw"
+      register: doctor_result
+      changed_when: "'fixed' in doctor_result.stdout"
+      failed_when: false
+      tags: [deploy]
+
+    - name: Display doctor output
+      ansible.builtin.debug:
+        msg: "{{ doctor_result.stdout_lines | default([]) }}"
+      when: doctor_result.stdout_lines | default([]) | length > 0
+      tags: [deploy]
+
     - name: Post-deploy connection info
       ansible.builtin.debug:
         msg: |
@@ -82,3 +113,4 @@
             sudo journalctl -u openclaw-gateway -f
             sudo systemctl restart openclaw-gateway
           ============================================
+      tags: [always]

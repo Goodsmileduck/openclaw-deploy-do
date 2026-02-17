@@ -1,0 +1,9 @@
+# {{ ansible_managed }}
+[traefik-auth]
+enabled = true
+port = http,https
+filter = traefik-auth
+logpath = /opt/traefik/logs/access.log
+maxretry = 5
+findtime = 300
+bantime = 3600

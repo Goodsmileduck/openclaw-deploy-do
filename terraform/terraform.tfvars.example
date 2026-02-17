@@ -6,12 +6,16 @@ droplet_name         = "openclaw-server"
 access_method        = "ssh_tunnel"  # ssh_tunnel | https
 # domain_name        = "openclaw.example.com"  # Required for https access_method
 # enable_tailscale   = false  # Combinable with any access_method
+# ssh_allowed_cidrs  = ["203.0.113.0/24"]  # Restrict SSH access (empty = open to all)
 
 # Claude setup-token (from: claude setup-token)
 # claude_setup_token = "your-setup-token"
 
 # Telegram bot token (from @BotFather)
 # telegram_bot_token = "your-bot-token"
+
+# Brave Search API key (for web_search tool, get at https://brave.com/search/api/)
+# brave_api_key      = "your-brave-api-key"
 
 # OpenClaw version (npm package)
 # openclaw_version   = "latest"
@@ -26,6 +30,12 @@ access_method        = "ssh_tunnel"  # ssh_tunnel | https
 # Build with: cd packer && packer build -var "do_token=$DO_TOKEN" .
 # custom_image_id    = "123456789"
 
+# Backup to DO Spaces (requires Spaces access keys)
+# Get keys at: https://cloud.digitalocean.com/account/api/spaces
+# enable_backup            = true
+# spaces_access_key_id     = "your-spaces-access-key"
+# spaces_secret_access_key = "your-spaces-secret-key"
+
 # LLM providers — first is primary, add more for runtime switching via /model
 # llm_providers = [
 #   { name = "anthropic", api_key = "" },
@@ -37,8 +47,13 @@ access_method        = "ssh_tunnel"  # ssh_tunnel | https
 # Ansible-only variables (not managed by Terraform)
 # Edit ansible/group_vars/all.yml or pass via --extra-vars / ansible-vault:
 #   acme_email, acme_challenge, acme_dns_token   — HTTPS/TLS settings
-#   enable_backup, spaces_*, restic_password      — Restic backup to DO Spaces
+#   enable_monitoring, beszel_port                — Beszel server monitoring
+#   enable_browser                                — Chrome + Playwright browser tool
 #   enable_control_ui                             — OpenClaw Control UI
 #   openclaw_channels                             — Channel integrations
 #   tailscale_auth_key                            — Tailscale pre-auth key
+#   auto_reboot_time                              — Unattended-upgrades reboot time
+#   traefik_rate_limit_*, traefik_basic_auth      — Traefik middleware
+#   traefik_fail2ban                              — Fail2ban for Traefik
+#   telegram_alert_chat_id                        — Service failure Telegram alerts
 # ---------------------------------------------------------------------------
