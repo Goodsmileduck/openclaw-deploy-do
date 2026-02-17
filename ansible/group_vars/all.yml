@@ -4,9 +4,13 @@ use_prebaked_image: false
 
 # SSH
 ssh_public_key_path: "~/.ssh/id_do_ssh.pub"
+ssh_allowed_cidrs: []  # CIDRs allowed to SSH (empty = open to all)
 
 # Access method: ssh_tunnel | https
 access_method: "ssh_tunnel"
+
+# System hardening
+auto_reboot_time: "04:00"  # Time for automatic reboot after kernel upgrades (HH:MM)
 
 # Tailscale (combinable with any access_method)
 enable_tailscale: false
@@ -29,6 +33,17 @@ acme_email: ""
 acme_challenge: "dns"       # dns | http
 acme_dns_token: ""          # DO API token scoped to DNS (for dns challenge)
 
+# Traefik rate limiting
+traefik_rate_limit_average: 100  # Requests per second (average)
+traefik_rate_limit_burst: 200    # Maximum burst size
+
+# Traefik basic auth (htpasswd format, empty = disabled)
+# Generate with: htpasswd -nb user password
+traefik_basic_auth: []
+
+# Traefik fail2ban (ban IPs with repeated 401/403/429 responses)
+traefik_fail2ban: true
+
 # Tailscale auth key (required when enable_tailscale == true)
 tailscale_auth_key: ""  # Pre-auth key from Tailscale admin console
 
@@ -41,9 +56,14 @@ openclaw_channels: []
 # Control UI
 enable_control_ui: true
 
+# Browser tool (Chrome + Playwright)
+enable_browser: false
+brave_api_key: ""
+
 # Telegram bot (legacy — prefer openclaw_channels for new setups)
 telegram_bot_token: ""
 telegram_dm_policy: "pairing"
+telegram_alert_chat_id: ""  # Telegram chat ID for service failure alerts
 
 # Droplet region (passed from Terraform, used by backup role)
 region: "nyc3"
@@ -55,3 +75,8 @@ spaces_secret_access_key: ""
 spaces_region: ""               # defaults to droplet region
 spaces_bucket: "openclaw-backups"
 restic_password: ""             # auto-generated if empty
+
+# Monitoring (Beszel)
+enable_monitoring: false
+beszel_port: 8090               # Port for Beszel web UI
+beszel_agent_key: ""            # Agent key (auto-generated if empty)

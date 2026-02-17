@@ -1,5 +1,5 @@
 [Unit]
-Description=OpenClaw Restic Backup
+Description=Verify OpenClaw Restic Backup Integrity
 After=network-online.target
 Wants=network-online.target
 {% if telegram_bot_token != "" and telegram_alert_chat_id != "" %}
@@ -10,5 +10,4 @@ OnFailure=openclaw-alert@%n.service
 Type=oneshot
 User=openclaw
 EnvironmentFile=/home/openclaw/.restic-env
-ExecStart=/usr/bin/restic backup /home/openclaw/.openclaw --exclude='*.log' --exclude='sandboxes/*' --exclude='browser/*'
-ExecStartPost=/usr/bin/restic forget --keep-hourly 24 --keep-daily 7 --keep-weekly 4 --prune
+ExecStart=/usr/bin/restic check

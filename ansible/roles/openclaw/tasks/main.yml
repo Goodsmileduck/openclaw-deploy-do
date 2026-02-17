@@ -6,12 +6,14 @@
     dest: /etc/apt/keyrings/nodesource.asc
     mode: "0644"
   when: not use_prebaked_image
+  tags: [install]
 
 - name: Add NodeSource 22.x repository
   ansible.builtin.apt_repository:
     repo: "deb [signed-by=/etc/apt/keyrings/nodesource.asc] https://deb.nodesource.com/node_22.x nodistro main"
     state: present
   when: not use_prebaked_image
+  tags: [install]
 
 - name: Install Node.js 22
   ansible.builtin.apt:
@@ -19,12 +21,14 @@
     state: present
     update_cache: true
   when: not use_prebaked_image
+  tags: [install]
 
 - name: Install pnpm globally
   ansible.builtin.command:
     cmd: npm install -g pnpm
     creates: /usr/lib/node_modules/pnpm
   when: not use_prebaked_image
+  tags: [install]
 
 # --- pnpm directories for openclaw user ---
 - name: Create pnpm global directories
@@ -38,6 +42,7 @@
     - /home/openclaw/.local/share/pnpm/global
     - /home/openclaw/.local/bin
   when: not use_prebaked_image
+  tags: [install]
 
 - name: Configure pnpm global-dir for openclaw user
   ansible.builtin.command:
@@ -46,6 +51,7 @@
   become_user: openclaw
   changed_when: true
   when: not use_prebaked_image
+  tags: [install]
 
 - name: Configure pnpm global-bin-dir for openclaw user
   ansible.builtin.command:
@@ -54,6 +60,7 @@
   become_user: openclaw
   changed_when: true
   when: not use_prebaked_image
+  tags: [install]
 
 - name: Ensure PATH includes pnpm bin in .bashrc
   ansible.builtin.lineinfile:
@@ -64,6 +71,40 @@
     group: openclaw
     mode: "0644"
   when: not use_prebaked_image
+  tags: [install]
+
+# --- Google Chrome (for browser tool) ---
+- name: Add Google Chrome GPG key
+  ansible.builtin.get_url:
+    url: https://dl.google.com/linux/linux_signing_key.pub
+    dest: /etc/apt/keyrings/google-chrome.asc
+    mode: "0644"
+  when: not use_prebaked_image and enable_browser | bool
+  tags: [install]
+
+- name: Add Google Chrome repository
+  ansible.builtin.copy:
+    content: "deb [arch=amd64 signed-by=/etc/apt/keyrings/google-chrome.asc] https://dl.google.com/linux/chrome/deb/ stable main\n"
+    dest: /etc/apt/sources.list.d/google-chrome.list
+    mode: "0644"
+  when: not use_prebaked_image and enable_browser | bool
+  tags: [install]
+
+- name: Install Google Chrome stable
+  ansible.builtin.apt:
+    name: google-chrome-stable
+    state: present
+    update_cache: true
+  when: not use_prebaked_image and enable_browser | bool
+  tags: [install]
+
+- name: Ensure Chrome repo uses signed-by (fix post-install overwrite)
+  ansible.builtin.copy:
+    content: "deb [arch=amd64 signed-by=/etc/apt/keyrings/google-chrome.asc] https://dl.google.com/linux/chrome/deb/ stable main\n"
+    dest: /etc/apt/sources.list.d/google-chrome.list
+    mode: "0644"
+  when: not use_prebaked_image and enable_browser | bool
+  tags: [install]
 
 # --- Install OpenClaw + Claude Code ---
 - name: Install OpenClaw via pnpm
@@ -75,6 +116,7 @@
   environment:
     PATH: "/home/openclaw/.local/bin:/home/openclaw/.local/share/pnpm:{{ ansible_env.PATH }}"
     PNPM_HOME: "/home/openclaw/.local/share/pnpm"
+  tags: [deploy]
 
 - name: Install Claude Code CLI via pnpm
   ansible.builtin.command:
@@ -85,6 +127,19 @@
   environment:
     PATH: "/home/openclaw/.local/bin:/home/openclaw/.local/share/pnpm:{{ ansible_env.PATH }}"
     PNPM_HOME: "/home/openclaw/.local/share/pnpm"
+  tags: [deploy]
+
+- name: Install Playwright (browser tool dependency)
+  ansible.builtin.command:
+    cmd: pnpm install -g playwright
+  become: true
+  become_user: openclaw
+  changed_when: true
+  environment:
+    PATH: "/home/openclaw/.local/bin:/home/openclaw/.local/share/pnpm:{{ ansible_env.PATH }}"
+    PNPM_HOME: "/home/openclaw/.local/share/pnpm"
+  when: enable_browser | bool
+  tags: [deploy]
 
 # --- Configuration ---
 - name: Create OpenClaw config directory
@@ -94,6 +149,7 @@
     owner: openclaw
     group: openclaw
     mode: "0700"
+  tags: [config]
 
 - name: Create auth-profiles directory
   ansible.builtin.file:
@@ -103,6 +159,7 @@
     group: openclaw
     mode: "0700"
   when: claude_setup_token != ""
+  tags: [config]
 
 - name: Template auth-profiles.json (Claude setup-token)
   ansible.builtin.template:
@@ -114,6 +171,7 @@
   when: claude_setup_token != ""
   no_log: true
   notify: Restart openclaw-gateway
+  tags: [config]
 
 - name: Generate gateway token
   ansible.builtin.command:
@@ -122,11 +180,13 @@
   changed_when: false
   no_log: true
   when: openclaw_gateway_token == ""
+  tags: [config]
 
 - name: Set gateway token fact
   ansible.builtin.set_fact:
     _gateway_token: "{{ openclaw_gateway_token if openclaw_gateway_token != '' else gateway_token_result.stdout }}"
   no_log: true
+  tags: [config]
 
 - name: Template OpenClaw configuration
   ansible.builtin.template:
@@ -136,6 +196,7 @@
     group: openclaw
     mode: "0600"
   notify: Restart openclaw-gateway
+  tags: [config]
 
 - name: Create OpenClaw system config directory
   ansible.builtin.file:
@@ -144,6 +205,7 @@
     owner: openclaw
     group: openclaw
     mode: "0700"
+  tags: [config]
 
 - name: Template gateway environment file
   ansible.builtin.template:
@@ -154,6 +216,7 @@
     mode: "0600"
   no_log: true
   notify: Restart openclaw-gateway
+  tags: [config]
 
 # --- systemd service ---
 - name: Template openclaw-gateway systemd service
@@ -166,12 +229,14 @@
   notify:
     - Reload systemd
     - Restart openclaw-gateway
+  tags: [service]
 
 - name: Enable and start openclaw-gateway
   ansible.builtin.service:
     name: openclaw-gateway
     state: started
     enabled: true
+  tags: [service]
 
 # --- Helpers ---
 - name: Deploy Claude setup-token helper script
@@ -181,6 +246,7 @@
     owner: openclaw
     group: openclaw
     mode: "0755"
+  tags: [config]
 
 - name: Save gateway token to local file
   ansible.builtin.copy:
@@ -190,7 +256,88 @@
   delegate_to: localhost
   become: false
   no_log: true
+  tags: [config]
 
 - name: Notify about gateway token
   ansible.builtin.debug:
     msg: "Gateway token saved to {{ playbook_dir }}/.gateway-token"
+  tags: [config]
+
+# --- Log rotation ---
+- name: Create OpenClaw log directory
+  ansible.builtin.file:
+    path: /tmp/openclaw
+    state: directory
+    owner: openclaw
+    group: openclaw
+    mode: "0755"
+  tags: [config]
+
+- name: Configure logrotate for OpenClaw
+  ansible.builtin.template:
+    src: logrotate-openclaw.j2
+    dest: /etc/logrotate.d/openclaw
+    owner: root
+    group: root
+    mode: "0644"
+  tags: [config]
+
+# --- Health check ---
+- name: Deploy health check script
+  ansible.builtin.template:
+    src: openclaw-healthcheck.sh.j2
+    dest: /usr/local/bin/openclaw-healthcheck.sh
+    owner: root
+    group: root
+    mode: "0755"
+  tags: [service]
+
+- name: Template health check service
+  ansible.builtin.template:
+    src: openclaw-healthcheck.service.j2
+    dest: /etc/systemd/system/openclaw-healthcheck.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd
+  tags: [service]
+
+- name: Template health check timer
+  ansible.builtin.template:
+    src: openclaw-healthcheck.timer.j2
+    dest: /etc/systemd/system/openclaw-healthcheck.timer
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd
+  tags: [service]
+
+- name: Enable and start health check timer
+  ansible.builtin.service:
+    name: openclaw-healthcheck.timer
+    state: started
+    enabled: true
+  tags: [service]
+
+# --- Telegram alerting ---
+- name: Deploy Telegram alert script
+  ansible.builtin.template:
+    src: openclaw-telegram-alert.sh.j2
+    dest: /usr/local/bin/openclaw-telegram-alert.sh
+    owner: root
+    group: root
+    mode: "0755"
+  when: telegram_bot_token != "" and telegram_alert_chat_id != ""
+  no_log: true
+  tags: [service]
+
+- name: Template alert service unit
+  ansible.builtin.template:
+    src: openclaw-alert@.service.j2
+    dest: /etc/systemd/system/openclaw-alert@.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd
+  when: telegram_bot_token != "" and telegram_alert_chat_id != ""
+  tags: [service]

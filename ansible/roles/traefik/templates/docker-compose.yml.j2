@@ -22,6 +22,7 @@ services:
     volumes:
       - /opt/traefik/acme:/acme
       - /opt/traefik/config:/config:ro
+      - /opt/traefik/logs:/logs
 {% if acme_challenge == "dns" %}
     environment:
       - DO_AUTH_TOKEN={{ acme_dns_token }}
@@ -30,6 +31,9 @@ services:
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
       - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--accesslog=true"
+      - "--accesslog.filepath=/logs/access.log"
+      - "--accesslog.bufferingsize=100"
       - "--providers.file.directory=/config"
       - "--providers.file.watch=true"
       - "--certificatesresolvers.letsencrypt.acme.email={{ acme_email }}"

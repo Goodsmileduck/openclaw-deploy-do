@@ -1,0 +1,33 @@
+# {{ ansible_managed }}
+services:
+  beszel:
+    image: henrygd/beszel:latest
+    container_name: beszel
+    restart: unless-stopped
+    ports:
+      - "{{ beszel_port }}:8090"
+    volumes:
+      - ./beszel_data:/beszel_data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.50"
+
+  beszel-agent:
+    image: henrygd/beszel-agent:latest
+    container_name: beszel-agent
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      PORT: "45876"
+      KEY: "{{ _beszel_agent_key }}"
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"

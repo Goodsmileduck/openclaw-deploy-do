@@ -71,6 +71,13 @@ variable "telegram_bot_token" {
   sensitive   = true
 }
 
+variable "brave_api_key" {
+  description = "Brave Search API key for web_search tool"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 variable "openclaw_version" {
   description = "OpenClaw npm package version"
   type        = string
@@ -88,10 +95,30 @@ variable "sandbox_mode" {
   }
 }
 
+variable "ssh_allowed_cidrs" {
+  description = "CIDRs allowed to SSH into the droplet (empty list = open to all)"
+  type        = list(string)
+  default     = []
+
+  validation {
+    condition = alltrue([
+      for cidr in var.ssh_allowed_cidrs :
+      can(cidrhost(cidr, 0))
+    ])
+    error_message = "Each entry in ssh_allowed_cidrs must be a valid CIDR (e.g. 203.0.113.0/24, ::/0)"
+  }
+}
+
 variable "custom_image_id" {
   description = "Pre-baked DigitalOcean snapshot ID. Leave empty for vanilla Ubuntu 24.04."
   type        = string
   default     = ""
+}
+
+variable "enable_backup" {
+  description = "Enable restic backup to DigitalOcean Spaces"
+  type        = bool
+  default     = false
 }
 
 variable "llm_providers" {

@@ -1,0 +1,67 @@
+---
+- name: Create Beszel directory
+  ansible.builtin.file:
+    path: /opt/beszel
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  tags: [config]
+
+- name: Generate Beszel agent key
+  ansible.builtin.command:
+    cmd: openssl rand -base64 32
+  register: beszel_key_result
+  changed_when: false
+  when: beszel_agent_key == ""
+  no_log: true
+  tags: [config]
+
+- name: Set Beszel agent key fact
+  ansible.builtin.set_fact:
+    _beszel_agent_key: "{{ beszel_agent_key if beszel_agent_key != '' else beszel_key_result.stdout }}"
+  no_log: true
+  tags: [config]
+
+- name: Template Beszel docker-compose.yml
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: /opt/beszel/docker-compose.yml
+    owner: root
+    group: root
+    mode: "0600"
+  notify: Restart beszel
+  tags: [config]
+
+- name: Allow Beszel port through UFW (localhost only)
+  community.general.ufw:
+    rule: allow
+    port: "{{ beszel_port | string }}"
+    proto: tcp
+    from_ip: 127.0.0.1
+  tags: [security]
+
+- name: Start Beszel
+  community.docker.docker_compose_v2:
+    project_src: /opt/beszel
+    state: present
+    pull: always
+  tags: [service]
+
+- name: Save Beszel agent key to local file
+  ansible.builtin.copy:
+    content: "{{ _beszel_agent_key }}"
+    dest: "{{ playbook_dir }}/.beszel-agent-key"
+    mode: "0600"
+  delegate_to: localhost
+  become: false
+  no_log: true
+  tags: [config]
+
+- name: Notify about Beszel
+  ansible.builtin.debug:
+    msg: >
+      Beszel monitoring running on port {{ beszel_port }}.
+      Access via SSH tunnel: ssh -L {{ beszel_port }}:localhost:{{ beszel_port }} openclaw@<server-ip>
+      Then open: http://localhost:{{ beszel_port }}
+  tags: [config]

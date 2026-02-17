@@ -5,12 +5,14 @@
     dest: /etc/apt/keyrings/tailscale.gpg
     mode: "0644"
   when: not use_prebaked_image
+  tags: [install]
 
 - name: Add Tailscale repository
   ansible.builtin.apt_repository:
     repo: "deb [signed-by=/etc/apt/keyrings/tailscale.gpg] https://pkgs.tailscale.com/stable/ubuntu {{ ansible_distribution_release }} main"
     state: present
   when: not use_prebaked_image
+  tags: [install]
 
 - name: Install Tailscale
   ansible.builtin.apt:
@@ -18,12 +20,14 @@
     state: present
     update_cache: true
   when: not use_prebaked_image
+  tags: [install]
 
 - name: Enable and start Tailscale
   ansible.builtin.service:
     name: tailscaled
     state: started
     enabled: true
+  tags: [service]
 
 - name: Check Tailscale status
   ansible.builtin.command:
@@ -31,12 +35,14 @@
   register: tailscale_status
   changed_when: false
   failed_when: false
+  tags: [service]
 
 - name: Authenticate Tailscale
   ansible.builtin.command:
     cmd: "tailscale up --authkey={{ tailscale_auth_key }}"
   when: tailscale_auth_key != "" and (tailscale_status.rc != 0 or (tailscale_status.stdout | from_json).BackendState != "Running")
   changed_when: true
+  tags: [service]
 
 - name: Configure Tailscale serve for OpenClaw gateway
   ansible.builtin.command:
@@ -44,3 +50,4 @@
   register: tailscale_serve_result
   changed_when: "'already serving' not in (tailscale_serve_result.stderr | default(''))"
   when: tailscale_auth_key != ""
+  tags: [config]

@@ -32,7 +32,17 @@ output "ssh_private_key_path" {
   value       = local.ssh_private_key_path
 }
 
+output "backup_bucket" {
+  description = "DO Spaces backup bucket domain (null when backup is disabled)"
+  value       = var.enable_backup ? digitalocean_spaces_bucket.openclaw_backup[0].bucket_domain_name : null
+}
+
 output "llm_providers" {
   description = "Configured LLM providers"
   value       = [for p in var.llm_providers : p.name]
+}
+
+output "backup_spaces_key_name" {
+  description = "Name of the Terraform-managed Spaces access key (null when backup is disabled)"
+  value       = var.enable_backup ? digitalocean_spaces_key.openclaw_backup[0].name : null
 }

@@ -24,7 +24,8 @@ run "access_method_accepts_https" {
   command = plan
 
   variables {
-    access_method = "https"
+    access_method    = "https"
+    openclaw_version = "1.0.0"
   }
 
   assert {
@@ -126,6 +127,30 @@ run "llm_providers_accepts_with_model_override" {
   }
 }
 
+# enable_backup validation
+
+run "enable_backup_defaults_to_false" {
+  command = plan
+
+  assert {
+    condition     = var.enable_backup == false
+    error_message = "enable_backup should default to false"
+  }
+}
+
+run "enable_backup_accepts_true" {
+  command = plan
+
+  variables {
+    enable_backup = true
+  }
+
+  assert {
+    condition     = var.enable_backup == true
+    error_message = "enable_backup should accept true"
+  }
+}
+
 # sandbox_mode validation
 
 run "sandbox_mode_accepts_non_main" {
@@ -151,4 +176,28 @@ run "sandbox_mode_rejects_invalid" {
   expect_failures = [
     var.sandbox_mode,
   ]
+}
+
+# brave_api_key passthrough
+
+run "brave_api_key_defaults_to_empty" {
+  command = plan
+
+  assert {
+    condition     = var.brave_api_key == ""
+    error_message = "brave_api_key should default to empty string"
+  }
+}
+
+run "brave_api_key_accepts_value" {
+  command = plan
+
+  variables {
+    brave_api_key = "BSA-test-key-12345"
+  }
+
+  assert {
+    condition     = var.brave_api_key == "BSA-test-key-12345"
+    error_message = "brave_api_key should accept a value"
+  }
 }

@@ -43,6 +43,9 @@ terraform/          # Flat Terraform root module (no nested modules)
     dns.tftest.hcl          # DNS resources conditional on domain_name
     outputs.tftest.hcl      # gateway_url format, output passthrough
     image.tftest.hcl        # custom_image_id + use_prebaked_image logic
+    version.tftest.hcl      # openclaw_version pinning when access_method=https
+    ssh_cidrs.tftest.hcl    # SSH source IP restriction validation
+    backup.tftest.hcl       # Spaces bucket + key creation, naming, ansible_vars injection
 
 packer/               # Packer HCL2 template for pre-baked DigitalOcean snapshot
   openclaw-base.pkr.hcl  # Builder config + provisioner chain
@@ -57,12 +60,13 @@ ansible/            # Ansible with roles-based structure
   group_vars/all.yml # Default variable values
   inventory.ini.example
   roles/
-    common/         # User, SSH hardening, UFW, fail2ban
+    common/         # User, SSH hardening, UFW, fail2ban, sysctl, unattended-upgrades, journald
     docker/         # Docker CE installation
-    openclaw/       # Native Node.js install, systemd service, config templates
-    traefik/        # Separate Traefik docker-compose at /opt/traefik/ (https only)
+    openclaw/       # Native Node.js install, systemd service, config templates, health check, alerting
+    traefik/        # Separate Traefik docker-compose at /opt/traefik/ (https only), rate limiting, fail2ban
     tailscale/      # Mesh VPN (enable_tailscale boolean)
-    backup/         # Native restic backup scheduling via systemd timer (enable_backup boolean)
+    backup/         # Native restic backup scheduling via systemd timer (enable_backup boolean), integrity check
+    monitoring/     # Beszel server monitoring via Docker (enable_monitoring boolean)
 
 scripts/
   deploy.sh         # Orchestrates terraform apply → ansible-playbook
@@ -77,10 +81,47 @@ scripts/
 - **Ansible:** Roles-based. Each role has `tasks/main.yml`, optional `handlers/main.yml` and `templates/`.
 - **Templates:** Jinja2 (`.j2` extension) for Ansible templates.
 - **Native deployment:** OpenClaw gateway runs natively via Node.js + pnpm as a systemd service (`openclaw-gateway`). Docker is used for agent sandboxing and Traefik (at `/opt/traefik/`). Restic runs natively via apt.
-- **Conditional roles:** traefik applied when `access_method == "https"`, tailscale when `enable_tailscale`, backup when `enable_backup`.
-- **Pre-baked image:** When `use_prebaked_image` is true (set automatically via `custom_image_id`), Ansible skips package installation tasks in all roles (apt, GPG keys, repos). Config templating and service management always run.
+- **Conditional roles:** traefik applied when `access_method == "https"`, tailscale when `enable_tailscale`, backup when `enable_backup`, monitoring when `enable_monitoring`.
+- **Pre-baked image:** When `use_prebaked_image` is true (set automatically via `custom_image_id`), Ansible skips package installation tasks in all roles (apt, GPG keys, repos). Config templating and service management always run. Equivalent to `--skip-tags install`.
+- **Ansible tags:** Every task is tagged for selective runs. See "Ansible Tags" section below.
 - **Ubuntu 24.04:** SSH service is `ssh`, not `sshd`.
 - **AI-ASSISTED-SETUP.md:** After any change to variables, scripts, roles, access methods, or deployment flow, update `AI-ASSISTED-SETUP.md` to keep the AI-assisted prompts and reference tables accurate.
+
+## Ansible Tags
+
+All tasks are tagged for selective execution. Two layers of tags:
+
+**Role tags** (on `playbook.yml` role includes): `common`, `docker`, `openclaw`, `traefik`, `tailscale`, `backup`, `monitoring`
+
+**Functional tags** (on individual tasks):
+
+| Tag | Purpose | Example tasks |
+|-----|---------|---------------|
+| `install` | System packages: apt, GPG keys, repos, pnpm setup | Docker CE, Node.js 22, Tailscale, restic |
+| `deploy` | Application deployment (always runs, even on pre-baked) | `pnpm install -g openclaw`, Claude Code CLI |
+| `config` | Configuration files, templates, directories, user setup | openclaw.json, daemon.json, auth-profiles, user creation |
+| `security` | SSH hardening, UFW rules, fail2ban | sshd_config, firewall rules, fail2ban jail |
+| `service` | systemd service management | enable/start docker, openclaw-gateway, backup timer |
+
+**Common usage patterns:**
+```bash
+# Skip package installs (pre-baked image, same as use_prebaked_image=true)
+ansible-playbook playbook.yml --skip-tags install
+
+# Only update config and restart services
+ansible-playbook playbook.yml --tags config,service
+
+# Only redeploy OpenClaw app (upgrade version)
+ansible-playbook playbook.yml --tags openclaw --skip-tags install
+
+# Only run security hardening
+ansible-playbook playbook.yml --tags security
+
+# Run a single role
+ansible-playbook playbook.yml --tags traefik
+```
+
+**Note:** `pre_tasks` (variable loading) and `post_tasks` (deploy info) are tagged `always` — they run regardless of `--tags` filtering.
 
 ## Terraform Testing
 
@@ -101,7 +142,7 @@ scripts/
 
 ## Variable Flow
 
-`terraform.tfvars` → Terraform generates `ansible/terraform_vars.yml` (sensitive) + `ansible/inventory.ini` → `scripts/deploy.sh` runs Terraform then Ansible → Ansible reads `group_vars/all.yml` overridden by `terraform_vars.yml`. Ansible-only secrets (e.g. `tailscale_auth_key`, `acme_dns_token`, `spaces_*`) still use `--extra-vars` or ansible-vault.
+`terraform.tfvars` → Terraform generates `ansible/terraform_vars.yml` (sensitive) + `ansible/inventory.ini` → `scripts/deploy.sh` runs Terraform then Ansible → Ansible reads `group_vars/all.yml` overridden by `terraform_vars.yml`. Ansible-only secrets (e.g. `tailscale_auth_key`, `acme_dns_token`) still use `--extra-vars` or ansible-vault.
 
 ## Key Variables
 
@@ -120,25 +161,37 @@ scripts/
 | `project_name` | `OpenClaw` | DigitalOcean project name |
 | `claude_setup_token` | `""` | Claude setup token (sensitive) |
 | `telegram_bot_token` | `""` | Telegram bot token (sensitive) |
+| `brave_api_key` | `""` | Brave Search API key for web_search tool (sensitive) |
 | `openclaw_version` | `"latest"` | OpenClaw npm package version |
 | `sandbox_mode` | `"non-main"` | Agent sandbox: `off`, `non-main`, `all` |
+| `ssh_allowed_cidrs` | `[]` | CIDRs allowed to SSH (empty = open to all) |
 | `custom_image_id` | `""` | Pre-baked snapshot ID (empty = vanilla Ubuntu 24.04) |
+| `enable_backup` | `false` | Restic backup to DO Spaces — Terraform auto-creates bucket (`<droplet_name>-backups`) and Spaces key |
 | `llm_providers` | `[]` | List of `{ name, api_key, model }` — first is primary |
+
+> **Backup note:** When `enable_backup = true`, Terraform creates the Spaces bucket and a scoped access key automatically. The bucket has `prevent_destroy = true` — it survives `terraform destroy` and must be manually deleted from the DO console to protect backup data.
 
 ### Ansible-only variables (in `group_vars/all.yml`, via `--extra-vars` or ansible-vault)
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `use_prebaked_image` | `false` | Skip package installs (set automatically by Terraform when `custom_image_id` is provided) |
-| `enable_backup` | `false` | Restic backup to DO Spaces |
+| `enable_monitoring` | `false` | Beszel server monitoring |
 | `enable_control_ui` | `true` | OpenClaw Control UI at `/openclaw` |
+| `enable_browser` | `false` | Chrome + Playwright browser tool |
+| `auto_reboot_time` | `"04:00"` | Automatic reboot time after kernel upgrades (HH:MM) |
 | `acme_email` | `""` | ACME email (for https) |
 | `acme_challenge` | `dns` | `dns` or `http` |
 | `acme_dns_token` | `""` | DO API token for DNS-01 challenge |
+| `traefik_rate_limit_average` | `100` | Traefik rate limit requests/sec average |
+| `traefik_rate_limit_burst` | `200` | Traefik rate limit burst size |
+| `traefik_basic_auth` | `[]` | Traefik basic auth users (htpasswd format) |
+| `traefik_fail2ban` | `true` | Enable fail2ban jail for Traefik 401/403/429 |
 | `openclaw_channels` | `[]` | List: whatsapp, telegram, discord, slack, signal, mattermost, web |
 | `tailscale_auth_key` | `""` | Tailscale pre-auth key |
-| `spaces_access_key_id` | `""` | DO Spaces access key (for backup) |
-| `spaces_secret_access_key` | `""` | DO Spaces secret key (for backup) |
+| `telegram_alert_chat_id` | `""` | Telegram chat ID for service failure alerts |
+| `beszel_port` | `8090` | Beszel web UI port |
+| `beszel_agent_key` | `""` | Beszel agent key (auto-generated if empty) |
 
 ## LLM Authentication
 
@@ -156,6 +209,8 @@ Critical schema rules discovered through deployment:
 - **Deprecated keys** that cause `doctor --fix` warnings: `agent.model` (use `agents.defaults`), `dm`.
 - OpenClaw's `doctor --fix` auto-enriches valid config (adds `groupPolicy`, `streamMode`, `plugins.entries`, `meta`) but will NOT fix schema violations.
 - The `channels.telegram` block only needs `enabled`, `botToken`, `dmPolicy` — OpenClaw adds the rest.
+- **OpenRouter model IDs** must be specific (e.g. `openrouter/deepseek/deepseek-v3.2`). Meta-routers like `openrouter/free` are NOT recognized by OpenClaw.
+- **`agents.defaults.models`** per-model config keys like `timeoutSeconds` and `maxConcurrent` are no longer valid — OpenClaw rejects them as unrecognized keys and the gateway refuses to start. Remove the `models` block entirely.
 
 ## Auth Profiles (auth-profiles.json)
 
@@ -185,12 +240,25 @@ Critical schema rules discovered through deployment:
 
 - **Ansible venv**: `ansible-playbook` lives in `~/.ansible-venv/bin/`. The `deploy.sh` script auto-activates the venv if not in PATH.
 - **SSH key**: Terraform derives private key path from `ssh_public_key_path` (strips `.pub` suffix) and writes it into `inventory.ini`.
-- **First deploy** uses `ansible_user=root`. After the common role runs, root SSH is disabled — re-runs need `ansible_user=openclaw` with `ansible_become=true`.
-- **Current server**: `146.190.86.54` (sgp1 region).
+- **Cloud-init user setup**: Terraform's `user_data` creates the `openclaw` user at boot. Ansible always connects as `openclaw` with `ansible_become=true` — no root SSH needed, even on first deploy.
+- **Cloud-init race condition**: The common role runs `cloud-init status --wait` before any apt tasks. Without this, cloud-init's apt operations conflict with Ansible's, causing dpkg locks or network crashes.
+- **Quick config updates**: For config-only changes, SSH + edit + `sudo systemctl restart openclaw-gateway` is faster than a full Ansible run. Use `--tags config,service` for Ansible-driven config updates.
 - **Gateway management**: `sudo systemctl status|restart openclaw-gateway` and `sudo journalctl -u openclaw-gateway -f`.
 - **Traefik** (https only): `sudo docker compose -f /opt/traefik/docker-compose.yml ps|logs|restart`.
 - **Remote openclaw commands (one-off)**: `./scripts/openclaw-cmd.sh <subcommand> [args]` (use `-i` for interactive, e.g. WhatsApp login).
 - **Remote openclaw commands (tunnel)**: `./scripts/openclaw-tunnel.sh start` then use `openclaw` locally (requires local install).
+- **destroy.sh**: Use `./scripts/destroy.sh -y` or `--force` to skip the confirmation prompt for non-interactive use.
+
+## Browser Tool + Web Search
+
+- **Browser tool** (`enable_browser`): Installs Google Chrome + Playwright. Chrome runs headless with `--no-sandbox` (required under systemd `ProtectSystem=strict`). Config adds `browser` block to `openclaw.json` with `defaultProfile: "openclaw"` (managed mode — no Chrome extension needed). Chrome is pre-installed in Packer image; Playwright is always installed at deploy time to match OpenClaw version.
+- **Brave Search** (`brave_api_key`): Terraform variable, flows via `terraform_vars.yml`. Sets `BRAVE_API_KEY` env var in gateway and adds `tools.web.search` to `openclaw.json`.
+- Chrome adds ~500MB disk. `enable_browser: false` by default.
+- **Browser profiles**: `openclaw` (managed headless, no extension) vs `chrome` (extension relay for personal browser). Server deployments must use `openclaw` profile.
+- **systemd ReadWritePaths**: When `enable_browser` is true, the service template adds `/home/openclaw/.config` to `ReadWritePaths` — Chrome needs write access for its user data directory.
+- **Chrome apt source conflict**: Chrome's deb package post-install script overwrites `/etc/apt/sources.list.d/google-chrome.list` without `signed-by`, conflicting with `apt_repository` module. The Ansible task uses `copy` instead of `apt_repository` and re-writes the file after install to restore `signed-by`.
+- **Model capability**: The browser tool requires a model that supports tool use (e.g., Claude, GPT-4o). Free/small models may not invoke it correctly.
+- **Docs**: https://docs.openclaw.ai/tools/browser.md, https://docs.openclaw.ai/tools/browser-linux-troubleshooting.md
 
 ## Telegram Bot
 

@@ -1,0 +1,12 @@
+# {{ ansible_managed }}
+[Unit]
+Description=OpenClaw Gateway Health Check
+After=openclaw-gateway.service
+{% if telegram_bot_token != "" and telegram_alert_chat_id != "" %}
+OnFailure=openclaw-alert@%n.service
+{% endif %}
+
+[Service]
+Type=oneshot
+User=openclaw
+ExecStart=/usr/local/bin/openclaw-healthcheck.sh

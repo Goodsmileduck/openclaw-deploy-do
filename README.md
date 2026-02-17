@@ -60,6 +60,40 @@ llm_providers = [
 
 The first entry becomes the primary model. Supported providers: `anthropic`, `openai`, `openrouter`, `gemini`, `do_ai`, `gradient`, `custom`.
 
+#### OpenRouter Models
+
+OpenRouter acts as a unified gateway to many LLM providers. Use the `openrouter/` prefix for model IDs. An API key is free to create at [openrouter.ai/keys](https://openrouter.ai/keys).
+
+**Best value models:**
+
+| Model ID | Context | Price (per M tokens) |
+|----------|---------|---------------------|
+| `openrouter/deepseek/deepseek-v3.2` | 163k | $0.25 / $0.38 |
+| `openrouter/mistralai/devstral-2512` | 256k | $0.05 / $0.22 |
+| `openrouter/qwen/qwen3-coder-next` | 256k | $0.07 / $0.30 |
+| `openrouter/xiaomi/mimo-v2-flash` | 256k | $0.09 / $0.29 |
+| `openrouter/bytedance-seed/seed-1.6-flash` | 256k | $0.075 / $0.30 |
+| `openrouter/kwaipilot/kat-coder-pro` | 256k | $0.21 / $0.83 |
+
+**Premium models:**
+
+| Model ID | Context | Price (per M tokens) |
+|----------|---------|---------------------|
+| `openrouter/anthropic/claude-opus-4.6` | 1M | $5 / $25 |
+| `openrouter/openai/gpt-5.1-codex` | 400k | $1.25 / $10 |
+| `openrouter/google/gemini-3-pro-preview` | 1M | $2 / $12 |
+| `openrouter/mistralai/mistral-large-2512` | 256k | $0.50 / $1.50 |
+
+**Free models:**
+
+| Model ID | Context |
+|----------|---------|
+| `openrouter/stepfun/step-3.5-flash:free` | 256k |
+| `openrouter/nvidia/nemotron-3-nano-30b-a3b:free` | 256k |
+| `openrouter/arcee-ai/trinity-mini:free` | 131k |
+
+Browse all models at [openrouter.ai/models](https://openrouter.ai/models).
+
 ### Option B: Claude Setup Token (in terraform.tfvars)
 
 If you have a Claude Pro or Max subscription, set the setup token instead of an API key:
@@ -101,9 +135,13 @@ These flow to Ansible automatically via a generated `terraform_vars.yml` file.
 | `project_name` | `OpenClaw` | DigitalOcean project name |
 | `claude_setup_token` | `""` | Claude setup token |
 | `telegram_bot_token` | `""` | Telegram bot token from @BotFather |
+| `brave_api_key` | `""` | Brave Search API key for web_search tool |
 | `openclaw_version` | `"latest"` | OpenClaw npm package version |
 | `sandbox_mode` | `"non-main"` | Agent sandbox: `off`, `non-main`, `all` |
 | `custom_image_id` | `""` | Pre-baked snapshot ID (see [Pre-baked Image](#pre-baked-image-optional)) |
+| `enable_backup` | `false` | Restic backup to DO Spaces (creates bucket automatically) |
+| `spaces_access_key_id` | `""` | DO Spaces access key (required when `enable_backup = true`) |
+| `spaces_secret_access_key` | `""` | DO Spaces secret key (required when `enable_backup = true`) |
 | `llm_providers` | `[]` | List of `{ name, api_key, model }` -- first is primary |
 
 ### Ansible-Only Variables (`ansible/group_vars/all.yml`)
@@ -112,15 +150,13 @@ These are configured via `--extra-vars`, ansible-vault, or by editing `group_var
 
 | Variable | Default | Description |
 |---|---|---|
-| `enable_backup` | `false` | Restic backup to DO Spaces |
+| `enable_browser` | `false` | Chrome + Playwright browser tool for web browsing |
 | `enable_control_ui` | `true` | OpenClaw Control UI at `/openclaw` |
 | `acme_email` | `""` | ACME email for TLS certificates |
 | `acme_challenge` | `dns` | ACME challenge type: `dns` or `http` |
 | `acme_dns_token` | `""` | DO API token scoped to DNS (for dns-01 challenge) |
 | `openclaw_channels` | `[]` | Channel integrations: whatsapp, telegram, discord, slack, signal, mattermost, web |
 | `tailscale_auth_key` | `""` | Tailscale pre-auth key (required when `enable_tailscale = true`) |
-| `spaces_access_key_id` | `""` | DO Spaces access key (for backup) |
-| `spaces_secret_access_key` | `""` | DO Spaces secret key (for backup) |
 
 ## Access Methods
 
@@ -175,7 +211,7 @@ By default, each deploy installs all packages from scratch on a fresh Ubuntu 24.
 
 ### What's Pre-baked
 
-The snapshot includes: Ubuntu 24.04 with security patches, Docker CE, Node.js 22, pnpm, Tailscale, restic, UFW + fail2ban, SSH hardening, and the `openclaw` user with directory structure. Services are enabled but not started.
+The snapshot includes: Ubuntu 24.04 with security patches, Docker CE, Node.js 22, pnpm, Google Chrome, Tailscale, restic, UFW + fail2ban, SSH hardening, and the `openclaw` user with directory structure. Services are enabled but not started.
 
 ### What's NOT Pre-baked
 
@@ -232,6 +268,48 @@ An example CI workflow is included at `.github/workflows/build-image.yml` (disab
 
 Leave `custom_image_id` empty (the default) to deploy on vanilla Ubuntu 24.04 with full Ansible installation. The Ansible playbook works identically either way.
 
+## Browser Tool + Web Search
+
+### Browser Tool
+
+Enable the built-in browser tool so agents can browse the web via headless Chrome. Uses OpenClaw's managed `openclaw` browser profile — no Chrome extension needed.
+
+```bash
+./scripts/deploy.sh --extra-vars "enable_browser=true"
+```
+
+This installs Google Chrome + Playwright on the server and adds the `browser` configuration to `openclaw.json`. Chrome adds ~500MB disk usage.
+
+Verify on the server:
+```bash
+openclaw browser --browser-profile openclaw status
+openclaw browser --browser-profile openclaw start
+openclaw browser --browser-profile openclaw open https://example.com
+openclaw browser --browser-profile openclaw snapshot
+```
+
+See the [browser tool docs](https://docs.openclaw.ai/tools/browser.md) for full details.
+
+### Web Search (Brave Search)
+
+Enable the web search tool with a [Brave Search API key](https://brave.com/search/api/):
+
+```hcl
+# In terraform.tfvars
+brave_api_key = "BSA-..."
+```
+
+The key flows to Ansible via `terraform_vars.yml`, sets the `BRAVE_API_KEY` environment variable, and enables the `tools.web.search` block in `openclaw.json`.
+
+### Both Together
+
+```bash
+# Set brave_api_key in terraform.tfvars, then:
+./scripts/deploy.sh --extra-vars "enable_browser=true"
+```
+
+**Note:** The browser tool requires a model that supports tool use (e.g., Claude, GPT-4o). Free/small models may not invoke it correctly.
+
 ## Post-Deploy
 
 ### Server Management
@@ -257,7 +335,8 @@ sudo journalctl -u openclaw-gateway -f
 ## Teardown
 
 ```bash
-./scripts/destroy.sh
+./scripts/destroy.sh        # interactive confirmation
+./scripts/destroy.sh -y     # skip confirmation (or --force)
 ```
 
 This destroys all DigitalOcean resources and cleans up the generated Ansible inventory and vars files.

@@ -1,0 +1,7 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Send Telegram alert for failed unit %i
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/openclaw-telegram-alert.sh %i

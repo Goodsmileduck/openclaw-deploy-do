@@ -1,0 +1,6 @@
+# {{ ansible_managed }}
+# Automatically restart services after library upgrades
+$nrconf{restart} = 'a';
+
+# Automatically restart kernel if needed (handled by unattended-upgrades reboot)
+$nrconf{kernelhints} = -1;

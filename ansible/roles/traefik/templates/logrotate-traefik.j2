@@ -1,0 +1,11 @@
+# {{ ansible_managed }}
+/opt/traefik/logs/*.log {
+    daily
+    missingok
+    rotate 14
+    compress
+    delaycompress
+    notifempty
+    copytruncate
+    su root root
+}

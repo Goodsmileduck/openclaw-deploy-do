@@ -383,27 +383,111 @@ openclaw channels status --probe
 
 ---
 
+## Browser Tool + Web Search
+
+Enable the browser tool (Chrome + Playwright) for web browsing and/or Brave Search for web search capabilities.
+
+### Browser Tool Only
+
+#### Prompt
+
+```
+Enable the browser tool for my OpenClaw deployment.
+
+1. Run the deployment with browser enabled:
+   ./scripts/deploy.sh --extra-vars "enable_browser=true"
+
+2. After deployment, verify:
+   - Chrome is installed: ssh openclaw@<droplet-ip> -- google-chrome-stable --version
+   - Playwright is installed: ssh openclaw@<droplet-ip> -- /home/openclaw/.local/bin/pnpm list -g playwright
+
+The browser tool lets agents browse the web via headless Chrome.
+Note: This adds ~500MB disk usage for Chrome.
+```
+
+### Brave Search Only
+
+#### Prompt
+
+```
+Enable web search for my OpenClaw deployment using Brave Search.
+
+1. Get a Brave Search API key at https://brave.com/search/api/
+
+2. Add to terraform/terraform.tfvars:
+   brave_api_key = "<my-brave-api-key>"
+
+3. Run the deployment:
+   ./scripts/deploy.sh
+
+The web_search tool lets agents search the web via the Brave Search API.
+```
+
+### Both Browser + Search
+
+#### Prompt
+
+```
+Enable both browser and web search for my OpenClaw deployment.
+
+1. Add to terraform/terraform.tfvars:
+   brave_api_key = "<my-brave-api-key>"
+
+2. Run the deployment:
+   ./scripts/deploy.sh --extra-vars "enable_browser=true"
+
+This enables both:
+- Browser tool (Chrome + Playwright) for web browsing
+- Web search tool (Brave Search API) for web searches
+```
+
+### Verification
+
+```bash
+# SSH into server
+ssh openclaw@<droplet-ip>
+
+# Check Chrome (if browser enabled)
+google-chrome-stable --version
+
+# Check config has browser/tools sections
+sudo cat /home/openclaw/.openclaw/openclaw.json | python3 -m json.tool
+
+# Check env has Brave key (if set)
+sudo grep BRAVE /etc/openclaw/gateway.env
+
+# Check gateway is running
+sudo systemctl status openclaw-gateway
+```
+
+---
+
 ## Backup to DO Spaces
 
-Enable encrypted incremental backups of OpenClaw data to DigitalOcean Spaces using restic.
+Enable encrypted incremental backups of OpenClaw data to DigitalOcean Spaces using restic. Terraform creates the Spaces bucket automatically.
 
 ### Prompt
 
 ```
 Enable backup for my OpenClaw deployment.
 
-1. Create a DO Spaces bucket named "openclaw-backups" in your region
-2. Generate Spaces access keys at:
+1. Generate Spaces access keys at:
    https://cloud.digitalocean.com/account/api/spaces
 
-3. Run deployment with backup enabled:
-   ./scripts/deploy.sh --extra-vars "enable_backup=true spaces_access_key_id=<key> spaces_secret_access_key=<secret>"
+2. Add to terraform/terraform.tfvars:
+   enable_backup            = true
+   spaces_access_key_id     = "<key>"
+   spaces_secret_access_key = "<secret>"
+
+3. Run the deployment:
+   ./scripts/deploy.sh
 
 4. After deployment:
    - Note the restic password displayed (SAVE IT!)
    - Verify the backup timer is active
    - Check backup status
 
+Terraform creates the DO Spaces bucket automatically.
 Reference ansible/roles/backup/ for the restic setup.
 ```
 
@@ -421,6 +505,85 @@ source ~/.restic-env && restic snapshots
 
 # Run a manual backup
 sudo systemctl start openclaw-backup.service
+```
+
+---
+
+## Server Monitoring (Beszel)
+
+Enable lightweight server monitoring with Beszel -- track CPU, memory, disk, network, and Docker container stats.
+
+### Prompt
+
+```
+Enable Beszel monitoring for my OpenClaw deployment.
+
+1. Run the deployment with monitoring enabled:
+   ./scripts/deploy.sh --extra-vars "enable_monitoring=true"
+
+2. After deployment:
+   - Set up SSH tunnel to access Beszel UI: ssh -L 8090:localhost:8090 openclaw@<droplet-ip>
+   - Open http://localhost:8090 and create admin account
+   - The agent is pre-configured on the same server
+
+Reference ansible/roles/monitoring/ for the Beszel Docker setup.
+```
+
+### Verification
+
+```bash
+# SSH into server
+ssh openclaw@<droplet-ip>
+
+# Check Beszel containers
+docker ps | grep beszel
+
+# Access via SSH tunnel
+ssh -L 8090:localhost:8090 openclaw@<droplet-ip>
+# Open http://localhost:8090
+```
+
+---
+
+## SSH Access Restriction
+
+Restrict SSH access to specific IP ranges for additional security.
+
+### Prompt
+
+```
+Restrict SSH access on my OpenClaw deployment to my IP address only.
+
+1. Add to terraform/terraform.tfvars:
+   ssh_allowed_cidrs = ["<my-ip>/32"]
+
+2. Re-run: ./scripts/deploy.sh
+
+This updates both the DigitalOcean firewall and UFW on the server.
+Warning: Make sure your IP is correct or you'll lock yourself out!
+```
+
+---
+
+## Telegram Service Alerts
+
+Get notified via Telegram when services fail (gateway, backup, health check).
+
+### Prompt
+
+```
+Enable Telegram alerts for my OpenClaw deployment.
+
+1. Add to terraform/terraform.tfvars:
+   telegram_bot_token = "<my-bot-token>"
+
+2. Run deployment with alert chat ID:
+   ./scripts/deploy.sh --extra-vars "telegram_alert_chat_id=<my-chat-id>"
+
+3. After deployment, service failures will send alerts to Telegram.
+
+To find your chat ID, send a message to your bot and check:
+https://api.telegram.org/bot<token>/getUpdates
 ```
 
 ---
@@ -544,8 +707,9 @@ cd ansible && ansible-playbook -i inventory.ini playbook.yml
 | `terraform/variables.tf` | All input variables with validation |
 | `ansible/group_vars/all.yml` | Default Ansible variables |
 | `ansible/playbook.yml` | Main Ansible playbook |
-| `ansible/roles/traefik/` | Traefik v3 reverse proxy (replaces nginx) |
-| `ansible/roles/backup/` | Restic backup to DO Spaces |
+| `ansible/roles/traefik/` | Traefik v3 reverse proxy with rate limiting and fail2ban |
+| `ansible/roles/backup/` | Restic backup to DO Spaces with integrity check timer |
+| `ansible/roles/monitoring/` | Beszel server monitoring via Docker |
 | `packer/openclaw-base.pkr.hcl` | Packer template for pre-baked droplet image |
 | `CLAUDE.md` | Project conventions for AI assistants |
 
@@ -574,7 +738,15 @@ sudo journalctl -u openclaw-gateway -f       # Follow logs
 
 # Backup
 sudo systemctl status openclaw-backup.timer   # Check backup timer
+sudo systemctl status openclaw-backup-check.timer  # Check integrity timer
 source ~/.restic-env && restic snapshots  # List snapshots
+
+# Health check
+sudo systemctl status openclaw-healthcheck.timer  # Check health timer
+sudo systemctl start openclaw-healthcheck.service  # Run health check now
+
+# Monitoring (Beszel)
+docker ps | grep beszel                        # Check Beszel containers
 ```
 
 ### Troubleshooting
@@ -592,6 +764,11 @@ source ~/.restic-env && restic snapshots  # List snapshots
 | Backup failing | Check `source ~/.restic-env && restic check`; verify Spaces credentials |
 | WhatsApp disconnected | Re-run `openclaw channels login --channel whatsapp` |
 | Control UI not loading | Verify `enable_control_ui: true` in config |
+| Health check failing | Check `sudo systemctl status openclaw-healthcheck.service`; gateway may be down |
+| Beszel not accessible | Verify `docker ps \| grep beszel`; check SSH tunnel on port 8090 |
+| No Telegram alerts | Verify both `telegram_bot_token` and `telegram_alert_chat_id` are set |
+| Browser tool not working | Verify `enable_browser: true`; check `google-chrome-stable --version`; check gateway logs for browser errors |
+| Web search not working | Verify `brave_api_key` is set in `terraform.tfvars`; check `grep BRAVE /etc/openclaw/gateway.env` |
 
 ### Architecture Diagram
 
@@ -632,9 +809,10 @@ source ~/.restic-env && restic snapshots  # List snapshots
 │  │  │  └─────────┘ └──────────┘ └──────┘  │   │  │
 │  │  └──────────────────────────────────────┘   │  │
 │  │                                             │  │
-│  │  ┌──────────┐                               │  │
-│  │  │  Restic  │  (native, backup)             │  │
-│  │  └──────────┘                               │  │
+│  │  ┌──────────┐  ┌──────────────┐              │  │
+│  │  │  Restic  │  │ Health Check │              │  │
+│  │  │ (backup) │  │  (5min timer)│              │  │
+│  │  └──────────┘  └──────────────┘              │  │
 │  └─────────────────────────────────────────────┘  │
 │                                                  │
 │  ┌─── Docker ────────────────────────────────┐  │
@@ -642,6 +820,9 @@ source ~/.restic-env && restic snapshots  # List snapshots
 │  │  │ Traefik  │  │  Agent Sandboxes     │   │  │
 │  │  │ (https)  │  │  (managed by gateway)│   │  │
 │  │  └──────────┘  └──────────────────────┘   │  │
+│  │  ┌──────────┐                              │  │
+│  │  │  Beszel  │  (monitoring, optional)      │  │
+│  │  └──────────┘                              │  │
 │  └───────────────────────────────────────────┘  │
 │                                                  │
 │  ┌───────────────┐                               │
